@@ -8,25 +8,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/Piccadilly98/goProjects/goVpn/data_structs"
+	"github.com/Piccadilly98/goProjects/goVpn/validation"
 )
-
-type VPNConfig struct {
-	RemoteHost     string
-	RemotePort     int
-	ca_filename    string
-	ca_inbuilt     string
-	cert_filename  string
-	cert_inbuilt   string
-	key_filename   string
-	key_inbuilt    string
-	secret         string
-	auth_user_pass bool
-	proto          string
-}
-
-func (v VPNConfig) String() string {
-	return fmt.Sprintf("Host: %s\nPort: %d\nca_file: %s\nca_inbuilt: %v\ncert_file: %s\ncert_inbuilt: %v\nkey_file: %s\nkey_inbuilt: %v\nsecret: %v\nauth: %v\nproto: %s", v.RemoteHost, v.RemotePort, v.ca_filename, v.ca_inbuilt, v.cert_filename, v.cert_inbuilt, v.key_filename, v.key_inbuilt, v.secret, v.auth_user_pass, v.proto)
-}
 
 func ParseConfig(filename string) error {
 	if !strings.Contains(filename, ".ovpn") {
@@ -39,7 +24,7 @@ func ParseConfig(filename string) error {
 	defer file.Close()
 	dir := filepath.Dir(filename)
 	scan := bufio.NewScanner(file)
-	config := VPNConfig{}
+	config := data_structs.VPNConfig{}
 	for scan.Scan() {
 
 		if strings.HasPrefix(scan.Text(), "#") {
@@ -66,67 +51,75 @@ func ParseConfig(filename string) error {
 					config.RemoteHost = lineSplitSpace[1]
 					config.RemotePort, err = strconv.Atoi(lineSplitSpace[2])
 					if err != nil {
-						return errors.New("invalid")
+						return errors.New("invalid port number")
 					}
 				} else {
-					return errors.New("invalid ")
+					return errors.New("invalid repeat port num or len remote < 3")
 				}
 			}
 		case "ca":
 			if len(lineSplitSpace) == 2 {
-				if config.ca_filename == "" {
-					config.ca_filename = filepath.Join(dir, lineSplitSpace[1])
+				if config.CaFilename == "" && config.CaInbuilt == "" {
+					path := filepath.Join(dir, lineSplitSpace[1])
+					config.CaFilename = path
 				} else {
-					return errors.New("invalid ")
+					return errors.New("invalid repeat ca")
 				}
 			}
 		case "cert":
 			if len(lineSplitSpace) == 2 {
-				if config.cert_filename == "" {
-					config.cert_filename = filepath.Join(dir, lineSplitSpace[1])
+				if config.CertFilename == "" && config.CertInbuilt == "" {
+					path := filepath.Join(dir, lineSplitSpace[1])
+					config.CertFilename = path
 				} else {
-					return errors.New("invalid ")
+					return errors.New("invalid repeat cert")
 				}
 			}
 
 		case "key":
 			if len(lineSplitSpace) == 2 {
-				if config.key_filename == "" {
-					config.key_filename = filepath.Join(dir, lineSplitSpace[1])
+				if config.KeyFileName == "" && config.KeyInbuilt == "" {
+					path := filepath.Join(dir, lineSplitSpace[1])
+					config.KeyFileName = path
 				} else {
-					return errors.New("invalid ")
+					return errors.New("invalid repeat key")
 				}
 			}
 		case "secret":
 			if len(lineSplitSpace) == 2 {
-				if config.secret == "" {
-					config.secret = filepath.Join(dir, lineSplitSpace[1])
+				if config.SecretInbuilt == "" && config.SecretFilename == "" {
+					path := filepath.Join(dir, lineSplitSpace[1])
+					config.SecretFilename = path
 				} else {
-					return errors.New("invalid ")
+					return errors.New("invalid repeat secret")
 				}
 			}
 
 		case "proto":
 			if len(lineSplitSpace) == 2 {
-				if config.proto == "" {
-					config.proto = lineSplitSpace[1]
+				if config.Proto == "" {
+					config.Proto = lineSplitSpace[1]
 				} else {
-					return errors.New("invalid ")
+					return errors.New("invalid repeat proto")
 				}
 			}
 
 		case "auth-user-pass":
-			config.auth_user_pass = true
+			config.AuthUserPass = true
 
 		}
 	}
 	fmt.Println(config)
+	_, err = validation.ValidateConfigInfo(&config)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
-func ReadBlock(tag string, scanner *bufio.Scanner, config *VPNConfig) error {
+func ReadBlock(tag string, scanner *bufio.Scanner, config *data_structs.VPNConfig) error {
 	var content string
-	if tag != "ca" && tag != "key" && tag != "cert" && tag != "secret" {
+	if tag != "ca" && tag != "key" && tag != "cert" && tag != "Secret" {
 		return errors.New("incorrect tag")
 	}
 	endBlock := "</" + tag + ">"
@@ -140,20 +133,34 @@ func ReadBlock(tag string, scanner *bufio.Scanner, config *VPNConfig) error {
 	content = strings.TrimSpace(content)
 	switch tag {
 	case "ca":
-		config.ca_inbuilt = content
+		if config.CaFilename == "" {
+			config.CaInbuilt = content
+		} else {
+			return errors.New("invalid, block ca repeat")
+		}
 	case "key":
-		config.key_inbuilt = content
+		if config.KeyFileName == "" {
+			config.KeyInbuilt = content
+		} else {
+			return errors.New("invalid, block key repeat")
+		}
 	case "cert":
-		config.cert_inbuilt = content
+		if config.CertFilename == "" {
+			config.CertInbuilt = content
+		} else {
+			return errors.New("invalid, block cert repeat")
+		}
 	case "secret":
-		config.secret = content
+		if config.SecretInbuilt == "" {
+			config.SecretInbuilt = content
+		} else {
+			return errors.New("invalid, block secret repeat")
+		}
 	}
 	return nil
 }
 
 func main() {
 	err := ParseConfig("../text.ovpn")
-	if err != nil {
-		fmt.Println(err)
-	}
+	fmt.Println(err)
 }
