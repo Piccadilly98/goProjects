@@ -1,4 +1,4 @@
-package main
+package parse_config
 
 import (
 	"bufio"
@@ -34,74 +34,79 @@ func ParseConfig(filename string) error {
 		line := strings.TrimSpace(scan.Text())
 		lineSplitComment := strings.Split(line, "#")
 		lineSplitSpace := strings.Split(lineSplitComment[0], " ")
+		sliceResult := make([]string, 0)
+		for _, word := range lineSplitSpace {
+			if word != "" && word != " " {
+				sliceResult = append(sliceResult, strings.TrimSpace(word))
+			}
+		}
+		if len(sliceResult) == 0 {
+			continue
+		}
 
-		if strings.HasPrefix(lineSplitSpace[0], "<") && strings.HasSuffix(lineSplitSpace[0], ">") {
-			if len(lineSplitSpace) == 1 {
-				tag := strings.Trim(lineSplitSpace[0], "<>")
+		if strings.HasPrefix(sliceResult[0], "<") && strings.HasSuffix(sliceResult[0], ">") {
+			if len(sliceResult) == 1 {
+				tag := strings.Trim(sliceResult[0], "<>")
 				err = ReadBlock(tag, scan, &config)
 				if err != nil {
 					return err
 				}
 			}
 		}
-		if i == 0 && lineSplitSpace[0] != "client" {
+		if i == 0 && sliceResult[0] != "client" {
 			return errors.New("incorrect config, is not contains \"client\"")
 		}
-		switch lineSplitSpace[0] {
+		tag := strings.TrimSpace(sliceResult[0])
+		switch tag {
 		case "remote":
-			if len(lineSplitSpace) == 3 {
-				if config.RemoteHost == "" && config.RemotePort == 0 {
-					config.RemoteHost = lineSplitSpace[1]
-					config.RemotePort, err = strconv.Atoi(lineSplitSpace[2])
-					if err != nil {
-						return errors.New("invalid port number")
-					}
+			if len(sliceResult) == 3 {
+				config.RemoteHost = sliceResult[1]
+				config.RemotePort, err = strconv.Atoi(sliceResult[2])
+				if err != nil {
+					return errors.New("invalid port number")
 				}
 			}
 		case "ca":
-			if len(lineSplitSpace) == 2 {
-				if config.CaFilename == "" && config.CaInbuilt == "" {
-					path := filepath.Join(dir, lineSplitSpace[1])
-					config.CaFilename = path
-				}
+			if len(sliceResult) == 2 {
+
+				path := filepath.Join(dir, sliceResult[1])
+				config.CaFilename = path
+
 			}
 		case "cert":
-			if len(lineSplitSpace) == 2 {
-				if config.CertFilename == "" && config.CertInbuilt == "" {
-					path := filepath.Join(dir, lineSplitSpace[1])
-					config.CertFilename = path
-				}
+			if len(sliceResult) == 2 {
+				path := filepath.Join(dir, sliceResult[1])
+				config.CertFilename = path
 			}
 
 		case "key":
-			if len(lineSplitSpace) == 2 {
-				if config.KeyFileName == "" && config.KeyInbuilt == "" {
-					path := filepath.Join(dir, lineSplitSpace[1])
-					config.KeyFileName = path
-				}
+			if len(sliceResult) == 2 {
+				path := filepath.Join(dir, sliceResult[1])
+				config.KeyFileName = path
 			}
 		case "secret":
 			if len(lineSplitSpace) == 2 {
-				if config.TlsAuth == "" && config.SecretFilename == "" {
-					path := filepath.Join(dir, lineSplitSpace[1])
-					config.SecretFilename = path
-				}
+				path := filepath.Join(dir, sliceResult[1])
+				config.SecretFilename = path
 			}
 
 		case "proto":
-			if len(lineSplitSpace) == 2 {
+			if len(sliceResult) == 2 {
 				if config.Proto == "" {
-					config.Proto = lineSplitSpace[1]
+					config.Proto = sliceResult[1]
 				}
 			}
 
 		case "auth-user-pass":
 			config.AuthUserPass = true
-
+			if len(sliceResult) == 2 {
+				path := filepath.Join(dir, sliceResult[1])
+				config.AuthUserPassFilename = path
+			}
 		}
 		i++
 	}
-	fmt.Println(config)
+	// fmt.Println(config)
 	_, err = validation.ValidateConfigInfo(&config)
 	if err != nil {
 		return err
@@ -111,9 +116,6 @@ func ParseConfig(filename string) error {
 
 func ReadBlock(tag string, scanner *bufio.Scanner, config *data_structs.VPNConfig) error {
 	var content string
-	// if tag != "ca" && tag != "key" && tag != "cert" && tag != "Secret" {
-	// 	return errors.New("incorrect tag")
-	// }
 	endBlock := "</" + tag + ">"
 	isContainsEnd := false
 	for scanner.Scan() {
@@ -155,9 +157,4 @@ func ReadBlock(tag string, scanner *bufio.Scanner, config *data_structs.VPNConfi
 		}
 	}
 	return nil
-}
-
-func main() {
-	err := ParseConfig("../text.ovpn")
-	fmt.Println(err)
 }

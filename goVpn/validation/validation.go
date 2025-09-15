@@ -162,7 +162,3 @@ func isIPCharacter(char rune) bool {
 		(char >= 'a' && char <= 'f') ||
 		(char >= 'A' && char <= 'F')
 }
-
-// func processingInbuiltInfo (info string, tag string)string{
-
-// }
