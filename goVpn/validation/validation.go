@@ -2,6 +2,7 @@ package validation
 
 import (
 	"errors"
+	"log"
 	"net"
 	"os"
 	"strings"
@@ -14,15 +15,13 @@ func ValidateFile(path string) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
-	}
-	if info.Size() == 0 {
+	} else if info.Size() == 0 {
 		return errors.New("file is empty")
 	}
 	return nil
 }
 
 func ValidateConfigInfo(config *data_structs.VPNConfig) (bool, error) {
-	validatePoint := 0
 	err := ValidationHost(config.RemoteHost)
 	if err != nil {
 		return false, err
@@ -37,49 +36,44 @@ func ValidateConfigInfo(config *data_structs.VPNConfig) (bool, error) {
 			return false, err
 		}
 	}
-	if config.CaInbuilt != "" {
 
+	if (config.CaFilename == "" && config.CaInbuilt == "") && (config.TlsAuth == "" && config.SecretFilename == "") {
+		return false, errors.New("invalid!\nNot contains Ca or Secret ")
 	}
 
-	if config.CaFilename == "" && config.CaInbuilt == "" {
-		return false, errors.New("config not contains ca")
-	}
-	if config.CertFilename != "" {
-		err := ValidateFile(config.CertFilename)
-		if err != nil {
-			return false, err
+	//приоритет
+	if config.SecretFilename == "" && config.TlsAuth == "" {
+		if config.CertFilename != "" {
+			err := ValidateFile(config.CertFilename)
+			if err != nil {
+				return false, err
+			}
 		}
-		validatePoint += 1
-	}
 
-	if config.CertInbuilt != "" {
-
-	}
-
-	if config.KeyFileName != "" {
-		err := ValidateFile(config.KeyFileName)
-		if err != nil {
-			return false, err
+		if config.KeyFileName != "" {
+			err := ValidateFile(config.KeyFileName)
+			if err != nil {
+				return false, err
+			}
 		}
-		validatePoint += 1
+		if (config.CertFilename != "" || config.CertInbuilt != "") && (config.KeyFileName == "" && config.KeyInbuilt == "") {
+			return false, errors.New("config contain cert and not contain key")
+		} else if (config.KeyFileName != "" || config.KeyInbuilt != "") && (config.CertInbuilt == "" && config.CertFilename == "") {
+			return false, errors.New("config contain key and not contain cert")
+		}
 	}
-
-	if config.KeyInbuilt != "" {
-
+	if (config.CertFilename != "" || config.CertInbuilt != "") && (config.TlsAuth != "" || config.SecretFilename != "") {
+		log.Println("config contain cert and secret\nSecret is priority")
 	}
-
 	if config.SecretFilename != "" {
+		if config.TlsAuth != "" {
+			return false, errors.New("invalid, block secret repeat")
+		}
 		err := ValidateFile(config.SecretFilename)
 		if err != nil {
 			return false, err
 		}
-		validatePoint += 2
 	}
-
-	if config.SecretInbuilt != "" {
-
-	}
-
 	if config.AuthUserPass && config.AuthUserPassFilename != "" {
 		err := ValidateFile(config.AuthUserPassFilename)
 		if err != nil {
@@ -87,9 +81,6 @@ func ValidateConfigInfo(config *data_structs.VPNConfig) (bool, error) {
 		}
 	}
 
-	if validatePoint != 2 {
-		return false, errors.New("invalid config file\nNot contains  key and cert or secret")
-	}
 	return true, nil
 }
 

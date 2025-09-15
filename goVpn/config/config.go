@@ -25,6 +25,7 @@ func ParseConfig(filename string) error {
 	dir := filepath.Dir(filename)
 	scan := bufio.NewScanner(file)
 	config := data_structs.VPNConfig{}
+	i := 0
 	for scan.Scan() {
 
 		if strings.HasPrefix(scan.Text(), "#") {
@@ -43,7 +44,9 @@ func ParseConfig(filename string) error {
 				}
 			}
 		}
-
+		if i == 0 && lineSplitSpace[0] != "client" {
+			return errors.New("incorrect config, is not contains \"client\"")
+		}
 		switch lineSplitSpace[0] {
 		case "remote":
 			if len(lineSplitSpace) == 3 {
@@ -53,8 +56,6 @@ func ParseConfig(filename string) error {
 					if err != nil {
 						return errors.New("invalid port number")
 					}
-				} else {
-					return errors.New("invalid repeat port num or len remote < 3")
 				}
 			}
 		case "ca":
@@ -62,8 +63,6 @@ func ParseConfig(filename string) error {
 				if config.CaFilename == "" && config.CaInbuilt == "" {
 					path := filepath.Join(dir, lineSplitSpace[1])
 					config.CaFilename = path
-				} else {
-					return errors.New("invalid repeat ca")
 				}
 			}
 		case "cert":
@@ -71,8 +70,6 @@ func ParseConfig(filename string) error {
 				if config.CertFilename == "" && config.CertInbuilt == "" {
 					path := filepath.Join(dir, lineSplitSpace[1])
 					config.CertFilename = path
-				} else {
-					return errors.New("invalid repeat cert")
 				}
 			}
 
@@ -81,17 +78,13 @@ func ParseConfig(filename string) error {
 				if config.KeyFileName == "" && config.KeyInbuilt == "" {
 					path := filepath.Join(dir, lineSplitSpace[1])
 					config.KeyFileName = path
-				} else {
-					return errors.New("invalid repeat key")
 				}
 			}
 		case "secret":
 			if len(lineSplitSpace) == 2 {
-				if config.SecretInbuilt == "" && config.SecretFilename == "" {
+				if config.TlsAuth == "" && config.SecretFilename == "" {
 					path := filepath.Join(dir, lineSplitSpace[1])
 					config.SecretFilename = path
-				} else {
-					return errors.New("invalid repeat secret")
 				}
 			}
 
@@ -99,8 +92,6 @@ func ParseConfig(filename string) error {
 			if len(lineSplitSpace) == 2 {
 				if config.Proto == "" {
 					config.Proto = lineSplitSpace[1]
-				} else {
-					return errors.New("invalid repeat proto")
 				}
 			}
 
@@ -108,6 +99,7 @@ func ParseConfig(filename string) error {
 			config.AuthUserPass = true
 
 		}
+		i++
 	}
 	fmt.Println(config)
 	_, err = validation.ValidateConfigInfo(&config)
@@ -119,16 +111,21 @@ func ParseConfig(filename string) error {
 
 func ReadBlock(tag string, scanner *bufio.Scanner, config *data_structs.VPNConfig) error {
 	var content string
-	if tag != "ca" && tag != "key" && tag != "cert" && tag != "Secret" {
-		return errors.New("incorrect tag")
-	}
+	// if tag != "ca" && tag != "key" && tag != "cert" && tag != "Secret" {
+	// 	return errors.New("incorrect tag")
+	// }
 	endBlock := "</" + tag + ">"
+	isContainsEnd := false
 	for scanner.Scan() {
-		if scanner.Text() == endBlock {
+		if strings.TrimSpace(scanner.Text()) == endBlock {
+			isContainsEnd = true
 			break
 		}
 		content += scanner.Text()
 
+	}
+	if !isContainsEnd {
+		return fmt.Errorf("tag %s is not contains end tag(%s)", tag, endBlock)
 	}
 	content = strings.TrimSpace(content)
 	switch tag {
@@ -150,9 +147,9 @@ func ReadBlock(tag string, scanner *bufio.Scanner, config *data_structs.VPNConfi
 		} else {
 			return errors.New("invalid, block cert repeat")
 		}
-	case "secret":
-		if config.SecretInbuilt == "" {
-			config.SecretInbuilt = content
+	case "tls-auth":
+		if config.TlsAuth == "" {
+			config.TlsAuth = content
 		} else {
 			return errors.New("invalid, block secret repeat")
 		}
