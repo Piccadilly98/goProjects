@@ -1,4 +1,6 @@
-package parse_config
+package parsing_config
+
+//фикс клиента
 
 import (
 	"bufio"
@@ -10,30 +12,27 @@ import (
 	"strings"
 
 	"github.com/Piccadilly98/goProjects/goVpn/data_structs"
-	"github.com/Piccadilly98/goProjects/goVpn/validation"
 )
 
-func ParseConfig(filename string) error {
+func ParseConfig(filename string) (*data_structs.VPNConfig, error) {
 	if !strings.Contains(filename, ".ovpn") {
-		return errors.New("filename is empty or not .ovpn")
+		return nil, errors.New("filename is empty or not .ovpn")
 	}
 	file, err := os.Open(filename)
 	if err != nil {
-		return errors.New("no such file")
+		return nil, errors.New("no such file")
 	}
 	defer file.Close()
 	dir := filepath.Dir(filename)
 	scan := bufio.NewScanner(file)
 	config := data_structs.VPNConfig{}
-	i := 0
 	for scan.Scan() {
 
 		if strings.HasPrefix(scan.Text(), "#") {
 			continue
 		}
-		line := strings.TrimSpace(scan.Text())
-		lineSplitComment := strings.Split(line, "#")
-		lineSplitSpace := strings.Split(lineSplitComment[0], " ")
+		lineSplitSpace := strings.Split(strings.Split(strings.TrimSpace(scan.Text()), "#")[0], " ")
+
 		sliceResult := make([]string, 0)
 		for _, word := range lineSplitSpace {
 			if word != "" && word != " " {
@@ -49,13 +48,11 @@ func ParseConfig(filename string) error {
 				tag := strings.Trim(sliceResult[0], "<>")
 				err = ReadBlock(tag, scan, &config)
 				if err != nil {
-					return err
+					return nil, err
 				}
 			}
 		}
-		if i == 0 && sliceResult[0] != "client" {
-			return errors.New("incorrect config, is not contains \"client\"")
-		}
+
 		tag := strings.TrimSpace(sliceResult[0])
 		switch tag {
 		case "remote":
@@ -63,7 +60,7 @@ func ParseConfig(filename string) error {
 				config.RemoteHost = sliceResult[1]
 				config.RemotePort, err = strconv.Atoi(sliceResult[2])
 				if err != nil {
-					return errors.New("invalid port number")
+					return nil, errors.New("invalid port number")
 				}
 			}
 		case "ca":
@@ -104,14 +101,9 @@ func ParseConfig(filename string) error {
 				config.AuthUserPassFilename = path
 			}
 		}
-		i++
 	}
-	// fmt.Println(config)
-	_, err = validation.ValidateConfigInfo(&config)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return &config, nil
 }
 
 func ReadBlock(tag string, scanner *bufio.Scanner, config *data_structs.VPNConfig) error {

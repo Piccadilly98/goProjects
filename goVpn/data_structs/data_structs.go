@@ -2,9 +2,11 @@ package data_structs
 
 import (
 	"fmt"
+	"time"
 )
 
 type VPNConfig struct {
+	IsClient             bool
 	RemoteHost           string
 	RemotePort           int
 	CaFilename           string
@@ -21,5 +23,21 @@ type VPNConfig struct {
 }
 
 func (v VPNConfig) String() string {
-	return fmt.Sprintf("Host: %s\nPort: %d\nca_file: %s\nCaInbuilt: %v\ncert_file: %s\nCertInbuilt: %v\nkey_file: %s\nKeyInbuilt: %v\nsecret_file: %v\nsecret_tls: %v\nauth: %v\nauth_file: %v\nProto: %s", v.RemoteHost, v.RemotePort, v.CaFilename, v.CaInbuilt, v.CertFilename, v.CertInbuilt, v.KeyFileName, v.KeyInbuilt, v.SecretFilename, v.TlsAuth, v.AuthUserPass, v.AuthUserPassFilename, v.Proto)
+	return fmt.Sprintf("\nClient: %v\nHost: %s\nPort: %d\nca_file: %s\nCaInbuilt: %v\ncert_file: %s\nCertInbuilt: %v\nkey_file: %s\nKeyInbuilt: %v\nsecret_file: %v\nsecret_tls: %v\nauth: %v\nauth_file: %v\nProto: %s", v.IsClient, v.RemoteHost, v.RemotePort, v.CaFilename, v.CaInbuilt, v.CertFilename, v.CertInbuilt, v.KeyFileName, v.KeyInbuilt, v.SecretFilename, v.TlsAuth, v.AuthUserPass, v.AuthUserPassFilename, v.Proto)
+}
+
+type InitInfo struct {
+	TimeInit       time.Time
+	Name           string
+	Password       string
+	Attention      []string
+	ConfigFilePath string
+}
+
+func (i InitInfo) String() string {
+	return fmt.Sprintf("ConfigFileName: %s\nTime start: %v\nUsername: %s\nPassword: %s\nAttentions: %s", i.ConfigFilePath, i.TimeInit, i.Name, i.Password, i.Attention)
+}
+
+func NewInitInfo() *InitInfo {
+	return &InitInfo{TimeInit: time.Now(), Attention: make([]string, 0)}
 }
