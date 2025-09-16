@@ -9,6 +9,7 @@ import (
 	parsing_config "github.com/Piccadilly98/goProjects/goVpn/config"
 	"github.com/Piccadilly98/goProjects/goVpn/data_structs"
 	"github.com/Piccadilly98/goProjects/goVpn/validation"
+	"github.com/Piccadilly98/goProjects/goVpn/vpn"
 )
 
 func main() {
@@ -27,7 +28,7 @@ func main() {
 	}
 
 	fmt.Printf("Start Parsing config: %v ...\n", logs.ConfigFilePath)
-	config, err := parsing_config.ParseConfig(logs.ConfigFilePath)
+	config, err := parsing_config.ParseConfig(logs)
 	if err != nil {
 		log.Fatalf("Error parsing config:\n%v", err)
 	}
@@ -43,6 +44,11 @@ func main() {
 		log.Fatalf("Error Auntification:\n%v", err)
 	}
 	fmt.Println("Configuration preparation and processing complete.\nStarting VPN...")
+
+	err = vpn.StartVPN(config, logs)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 }
 

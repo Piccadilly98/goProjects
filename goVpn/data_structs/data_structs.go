@@ -32,10 +32,11 @@ type InitInfo struct {
 	Password       string
 	Attention      []error
 	ConfigFilePath string
+	Filename       string
 }
 
 func (i InitInfo) String() string {
-	return fmt.Sprintf("ConfigFileName: %s\nTime start: %v\nUsername: %s\nPassword: %s\nAttentions: %s", i.ConfigFilePath, i.TimeInit, i.Name, i.Password, i.Attention)
+	return fmt.Sprintf("ConfigFileName: %s\nFileName: %s\nTime start: %v\nUsername: %s\nPassword: %s\nAttentions: %s", i.ConfigFilePath, i.Filename, i.TimeInit, i.Name, i.Password, i.Attention)
 }
 
 func NewInitInfo() *InitInfo {

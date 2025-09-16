@@ -14,16 +14,18 @@ import (
 	"github.com/Piccadilly98/goProjects/goVpn/data_structs"
 )
 
-func ParseConfig(filename string) (*data_structs.VPNConfig, error) {
-	if !strings.Contains(filename, ".ovpn") {
+func ParseConfig(logs *data_structs.InitInfo) (*data_structs.VPNConfig, error) {
+	if !strings.Contains(logs.ConfigFilePath, ".ovpn") {
 		return nil, errors.New("filename is empty or not .ovpn")
 	}
-	file, err := os.Open(filename)
+	file, err := os.Open(logs.ConfigFilePath)
 	if err != nil {
 		return nil, errors.New("no such file")
 	}
 	defer file.Close()
-	dir := filepath.Dir(filename)
+	dir := filepath.Dir(logs.ConfigFilePath)
+	pathSplit := strings.Split(logs.ConfigFilePath, "/")
+	logs.Filename = pathSplit[len(pathSplit)-1]
 	scan := bufio.NewScanner(file)
 	config := data_structs.VPNConfig{}
 	for scan.Scan() {
@@ -116,6 +118,9 @@ func ReadBlock(tag string, scanner *bufio.Scanner, config *data_structs.VPNConfi
 		if strings.TrimSpace(scanner.Text()) == endBlock {
 			isContainsEnd = true
 			break
+		}
+		if strings.HasPrefix(strings.TrimSpace(scanner.Text()), "--") {
+			continue
 		}
 		content += scanner.Text()
 
