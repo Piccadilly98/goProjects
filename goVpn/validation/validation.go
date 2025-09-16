@@ -21,24 +21,24 @@ func ValidateFile(path string) error {
 	return nil
 }
 
-func ValidateConfigInfo(config *data_structs.VPNConfig) (bool, error) {
+func ValidateConfigInfo(config *data_structs.VPNConfig, logs *data_structs.InitInfo) error {
 	err := ValidationHost(config.RemoteHost)
 	if err != nil {
-		return false, err
+		return err
 	}
 	err = validationPort(config.RemotePort)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if config.CaFilename != "" {
 		err := ValidateFile(config.CaFilename)
 		if err != nil {
-			return false, err
+			return err
 		}
 	}
 
 	if (config.CaFilename == "" && config.CaInbuilt == "") && (config.TlsAuth == "" && config.SecretFilename == "") {
-		return false, errors.New("invalid!\nNot contains Ca or Secret ")
+		return errors.New("invalid!\nNot contains Ca or Secret ")
 	}
 
 	//приоритет
@@ -46,20 +46,20 @@ func ValidateConfigInfo(config *data_structs.VPNConfig) (bool, error) {
 		if config.CertFilename != "" {
 			err := ValidateFile(config.CertFilename)
 			if err != nil {
-				return false, err
+				return err
 			}
 		}
 
 		if config.KeyFileName != "" {
 			err := ValidateFile(config.KeyFileName)
 			if err != nil {
-				return false, err
+				return err
 			}
 		}
 		if (config.CertFilename != "" || config.CertInbuilt != "") && (config.KeyFileName == "" && config.KeyInbuilt == "") {
-			return false, errors.New("config contain cert and not contain key")
+			return errors.New("config contain cert and not contain key")
 		} else if (config.KeyFileName != "" || config.KeyInbuilt != "") && (config.CertInbuilt == "" && config.CertFilename == "") {
-			return false, errors.New("config contain key and not contain cert")
+			return errors.New("config contain key and not contain cert")
 		}
 	}
 	if (config.CertFilename != "" || config.CertInbuilt != "") && (config.TlsAuth != "" || config.SecretFilename != "") {
@@ -67,21 +67,21 @@ func ValidateConfigInfo(config *data_structs.VPNConfig) (bool, error) {
 	}
 	if config.SecretFilename != "" {
 		if config.TlsAuth != "" {
-			return false, errors.New("invalid, block secret repeat")
+			return errors.New("invalid, block secret repeat")
 		}
 		err := ValidateFile(config.SecretFilename)
 		if err != nil {
-			return false, err
+			return err
 		}
 	}
 	if config.AuthUserPass && config.AuthUserPassFilename != "" {
 		err := ValidateFile(config.AuthUserPassFilename)
 		if err != nil {
-			return false, err
+			return err
 		}
 	}
 
-	return true, nil
+	return nil
 }
 
 func ValidationHost(remoteHost string) error {

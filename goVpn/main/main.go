@@ -32,7 +32,7 @@ func main() {
 		log.Fatalf("Error parsing config:\n%v", err)
 	}
 	fmt.Println("The configuration is checked, let's proceed to testing...")
-	_, err = validation.ValidateConfigInfo(config)
+	err = validation.ValidateConfigInfo(config, logs)
 	if err != nil {
 		log.Fatalf("Error validation:\n%v", err)
 	}
@@ -42,23 +42,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error Auntification:\n%v", err)
 	}
-	fmt.Println(logs)
+	fmt.Println("Configuration preparation and processing complete.\nStarting VPN...")
 
 }
 
 func processingFlags(log *data_structs.InitInfo) error {
 	if log.ConfigFilePath == "no such file" {
-		return fmt.Errorf("incorrect input, please repeat start programm and check filepath")
+		return fmt.Errorf("incorrect input, please repeat start programm and write configfilename")
 	}
 	if (log.Name != "user" && log.Password == "empty") || (log.Password != "empty" && log.Name == "user") {
 		return fmt.Errorf("incorrect input auth data.\nPasword without login or login without password")
 	}
 	return nil
 }
-
-// func menu(logs *data_structs.InitInfo) {
-// 	fmt.Printf("      Hello %s!\n", logs.Name)
-// 	fmt.Printf("      Proccessing and parsing your filepath: %s ....\n", logs.ConfigFilePath)
-// 	err := validation.ValidateFile(logs.ConfigFilePath)
-
-// }

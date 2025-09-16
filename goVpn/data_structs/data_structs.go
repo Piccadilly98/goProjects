@@ -30,7 +30,7 @@ type InitInfo struct {
 	TimeInit       time.Time
 	Name           string
 	Password       string
-	Attention      []string
+	Attention      []error
 	ConfigFilePath string
 }
 
@@ -39,5 +39,5 @@ func (i InitInfo) String() string {
 }
 
 func NewInitInfo() *InitInfo {
-	return &InitInfo{TimeInit: time.Now(), Attention: make([]string, 0)}
+	return &InitInfo{TimeInit: time.Now(), Attention: make([]error, 0)}
 }

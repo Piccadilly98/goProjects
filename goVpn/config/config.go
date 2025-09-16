@@ -55,6 +55,8 @@ func ParseConfig(filename string) (*data_structs.VPNConfig, error) {
 
 		tag := strings.TrimSpace(sliceResult[0])
 		switch tag {
+		case "client":
+			config.IsClient = true
 		case "remote":
 			if len(sliceResult) == 3 {
 				config.RemoteHost = sliceResult[1]
