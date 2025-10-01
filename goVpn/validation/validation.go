@@ -21,7 +21,7 @@ func ValidateFile(path string) error {
 	return nil
 }
 
-func ValidateConfigInfo(config *data_structs.VPNConfig, logs *data_structs.InitInfo) error {
+func ValidateConfigInfo(config *data_structs.VPNConfig) error {
 	err := ValidationHost(config.RemoteHost)
 	if err != nil {
 		return err

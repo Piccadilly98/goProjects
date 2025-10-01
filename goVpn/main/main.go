@@ -33,22 +33,28 @@ func main() {
 		log.Fatalf("Error parsing config:\n%v", err)
 	}
 	fmt.Println("The configuration is checked, let's proceed to testing...")
-	err = validation.ValidateConfigInfo(config, logs)
+	err = validation.ValidateConfigInfo(config)
 	if err != nil {
 		log.Fatalf("Error validation:\n%v", err)
 	}
 	fmt.Printf("Configuration finish parsing and validation\n")
 	fmt.Println("Checking your input data and proccess your authentication..")
-	err = auth.AuthenticationManager(config, logs)
+	err = auth.AuthenticationManager(config)
 	if err != nil {
 		log.Fatalf("Error Auntification:\n%v", err)
 	}
 	fmt.Println("Configuration preparation and processing complete.\nStarting VPN...")
-
-	err = vpn.StartVPN(config, logs)
+	// fmt.Println(time.Since(logs.TimeInit))
+	// fmt.Println(config)
+	err = vpn.StartVPN(config)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// err = vpn.StartVPN(config, logs)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 }
 

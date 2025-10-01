@@ -106,7 +106,7 @@ func ParseConfig(logs *data_structs.InitInfo) (*data_structs.VPNConfig, error) {
 			}
 		}
 	}
-
+	config.Logs = logs
 	return &config, nil
 }
 

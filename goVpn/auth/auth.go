@@ -9,21 +9,21 @@ import (
 	"github.com/Piccadilly98/goProjects/goVpn/data_structs"
 )
 
-func AuthenticationManager(config *data_structs.VPNConfig, logs *data_structs.InitInfo) error {
+func AuthenticationManager(config *data_structs.VPNConfig) error {
 	var err error
-	if logs.Password != "empty" && config.AuthUserPassFilename != "" {
+	if config.Logs.Password != "empty" && config.AuthUserPassFilename != "" {
 		config.AuthUserPassFilename = ""
 	}
 	if config.AuthUserPass {
 		if config.AuthUserPassFilename != "" {
-			logs.Name, logs.Password, err = readFile(config.AuthUserPassFilename)
+			config.Logs.Name, config.Logs.Password, err = readFile(config.AuthUserPassFilename)
 			if err != nil {
 				return err
 			}
-		} else if logs.Name == "user" && logs.Password == "empty" {
+		} else if config.Logs.Name == "user" && config.Logs.Password == "empty" {
 			input := inputData()
 			if len(input) == 2 {
-				logs.Name, logs.Password = input[0], input[1]
+				config.Logs.Name, config.Logs.Password = input[0], input[1]
 			}
 		}
 	}
@@ -42,7 +42,7 @@ func inputData() []string {
 func readFile(filename string) (string, string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("auth file %s no such", filename)
 	}
 	result := make([]string, 0)
 	defer file.Close()

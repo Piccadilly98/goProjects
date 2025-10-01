@@ -20,10 +20,26 @@ type VPNConfig struct {
 	AuthUserPass         bool
 	AuthUserPassFilename string
 	Proto                string
+	Logs                 *InitInfo
 }
 
 func (v VPNConfig) String() string {
-	return fmt.Sprintf("\nClient: %v\nHost: %s\nPort: %d\nca_file: %s\nCaInbuilt: %v\ncert_file: %s\nCertInbuilt: %v\nkey_file: %s\nKeyInbuilt: %v\nsecret_file: %v\nsecret_tls: %v\nauth: %v\nauth_file: %v\nProto: %s", v.IsClient, v.RemoteHost, v.RemotePort, v.CaFilename, v.CaInbuilt, v.CertFilename, v.CertInbuilt, v.KeyFileName, v.KeyInbuilt, v.SecretFilename, v.TlsAuth, v.AuthUserPass, v.AuthUserPassFilename, v.Proto)
+	return fmt.Sprintf("\nClient: %v\nHost: %s\nPort: %d\nca_file: %s\nCaInbuilt: %v\ncert_file: %s\nCertInbuilt: %v\nkey_file: %s\nKeyInbuilt: %v\nsecret_file: %v\nsecret_tls: %v\nauth: %v\nauth_file: %v\nProto: %s\nInit info: %s",
+		v.IsClient,
+		v.RemoteHost,
+		v.RemotePort,
+		v.CaFilename,
+		v.CaInbuilt,
+		v.CertFilename,
+		v.CertInbuilt,
+		v.KeyFileName,
+		v.KeyInbuilt,
+		v.SecretFilename,
+		v.TlsAuth,
+		v.AuthUserPass,
+		v.AuthUserPassFilename,
+		v.Proto,
+		v.Logs)
 }
 
 type InitInfo struct {
@@ -35,7 +51,7 @@ type InitInfo struct {
 	Filename       string
 }
 
-func (i InitInfo) String() string {
+func (i *InitInfo) String() string {
 	return fmt.Sprintf("ConfigFileName: %s\nFileName: %s\nTime start: %v\nUsername: %s\nPassword: %s\nAttentions: %s", i.ConfigFilePath, i.Filename, i.TimeInit, i.Name, i.Password, i.Attention)
 }
 
