@@ -1,0 +1,8 @@
+Plan intelectHome:
+    -HTTP server in localhost
+    -WiFi.h in esp32
+    -Connect my esp in my WiFi
+    -First Handler in my HTTPS server
+    -First API esp->Server(control led in esp through http request and
+    get Response)
+    
