@@ -26,13 +26,7 @@ func (l *Logs) String() string {
 	return str
 }
 
-func (l *Logs) CreateAndAddRecordPost(r *http.Request, ID, status string, httpCode int) {
-	str := fmt.Sprintf("Time: %v\nUrl: %s\nMehod: %v\nBody:\nID: %s\nStatus: %s\nCode: %d", time.Now(), r.URL, r.Method, ID, status, httpCode)
-
-	newRecords(str, l)
-}
-
-func (l *Logs) CreateAndAddRecordGet(r *http.Request, body []byte, httpCode int) {
-	str := fmt.Sprintf("Time: %v\nUrl: %s\nMehod: %v\nBody: %s\nCode: %d", time.Now(), r.URL, r.Method, string(body), httpCode)
+func (l *Logs) CreateAndAddRecord(r *http.Request, body []byte, httpCode int, errors string) {
+	str := fmt.Sprintf("Time: %v\nUrl: %s\nMehod: %v\nBody: %s\nCode: %d\nErrors: %s\n", time.Now(), r.URL, r.Method, string(body), httpCode, errors)
 	newRecords(str, l)
 }

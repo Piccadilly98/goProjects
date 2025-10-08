@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
@@ -38,21 +39,28 @@ func (h *HandlerControl) Contorol(w http.ResponseWriter, r *http.Request) {
 	}()
 	reqInfo := &RequestInfo{}
 	if r.Method == http.MethodPost {
-		json.NewDecoder(r.Body).Decode(reqInfo)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+			h.storage.NewLog(r, body, http.StatusInternalServerError, err.Error())
+			return
+		}
+		json.Unmarshal(body, reqInfo)
 
 		if !h.storage.CheckIdDevice(reqInfo.ID) {
 			code := http.StatusBadRequest
 			w.WriteHeader(code)
-			h.storage.NewLogPost(r, reqInfo.ID, reqInfo.Status, code)
+			h.storage.NewLog(r, body, code, "errors: device not found")
 			return
 		}
 		if !reqInfo.Validate() {
 			code := http.StatusBadRequest
 			w.WriteHeader(code)
-			h.storage.NewLogPost(r, reqInfo.ID, reqInfo.Status, code)
+			h.storage.NewLog(r, body, code, "invalid request")
 			return
 		}
-		h.storage.NewLogPost(r, reqInfo.ID, reqInfo.Status, http.StatusOK)
+		h.storage.NewLog(r, body, http.StatusOK, "")
 		h.storage.UpdateStatusDevice(reqInfo.ID, reqInfo.Status)
 	} else if r.Method == http.MethodGet {
 		js := h.storage.GetAllDevicesStatusJson()
@@ -60,10 +68,10 @@ func (h *HandlerControl) Contorol(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			fmt.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
-			h.storage.NewLogGet(r, b, http.StatusInternalServerError)
+			h.storage.NewLog(r, b, http.StatusInternalServerError, err.Error())
 			return
 		}
-		h.storage.NewLogGet(r, b, http.StatusOK)
+		h.storage.NewLog(r, b, http.StatusOK, "")
 		w.Write(b)
 		return
 	} else {

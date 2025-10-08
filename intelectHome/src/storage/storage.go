@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/Piccadilly98/goProjects/intelectHome/src/logs"
 	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
@@ -46,6 +47,10 @@ func (s *Storage) UpdateStatusDevice(id, status string) bool {
 	return false
 }
 
+func (s *Storage) UpdateBoardDevice(id string, board string) {
+	s.deviceData[id].BoadrId = board
+}
+
 func (s *Storage) PrintLogs() {
 	s.mtx.Lock()
 	l := s.logs.String()
@@ -73,9 +78,9 @@ func (s *Storage) PrintDataDevice() {
 	fmt.Println(dd)
 }
 
-func (s *Storage) AddNewDeviceId(id string) {
+func (s *Storage) AddNewDeviceId(id string, boadrID string) {
 	s.mtx.Lock()
-	s.deviceData[id] = &models.Device_data{ID: id, Status: StatusOFF}
+	s.deviceData[id] = &models.Device_data{ID: id, Status: StatusOFF, BoadrId: boadrID}
 	s.mtx.Unlock()
 }
 
@@ -89,7 +94,7 @@ func (s *Storage) GetAllDevicesStatusJson() []*models.JSONResponse {
 	responses := make([]*models.JSONResponse, 0)
 	s.mtx.Lock()
 	for _, v := range s.deviceData {
-		responses = append(responses, &models.JSONResponse{ID: v.ID, Status: v.Status})
+		responses = append(responses, &models.JSONResponse{ID: v.ID, Status: v.Status, BoadrId: v.BoadrId})
 	}
 	s.mtx.Unlock()
 	return responses
@@ -105,6 +110,11 @@ func (s *Storage) GetAllDevicesStatusString() string {
 	return str
 }
 
+func (s *Storage) AddNewBoardInfo(db *models.DataBoard) {
+	s.boardData[db.BoardId] = db
+	s.boardData[db.BoardId].TimeUpload = time.Now()
+}
+
 func (s *Storage) GetDeviceStatus(id string) string {
 	s.mtx.Lock()
 	v, ok := s.deviceData[id]
@@ -115,25 +125,30 @@ func (s *Storage) GetDeviceStatus(id string) string {
 	return ""
 }
 
-func (s *Storage) GetBoardInfo(id string) string {
+func (s *Storage) GetBoardInfo(id string) (models.DataBoard, error) {
 	s.mtx.Lock()
 	v, ok := s.boardData[id]
 	s.mtx.Unlock()
 	if ok {
-		return v.String()
+		return *v, nil
 	}
-	return ""
+	return models.DataBoard{}, fmt.Errorf("invalid boardID: %s", id)
 }
 
-func (s *Storage) NewLogPost(r *http.Request, ID, status string, httpCode int) {
+func (s *Storage) GetAllBoardsInfo() []models.DataBoard {
+	res := make([]models.DataBoard, 0)
+
 	s.mtx.Lock()
-	s.logs.CreateAndAddRecordPost(r, ID, status, httpCode)
+	for _, v := range s.boardData {
+		res = append(res, *v)
+	}
 	s.mtx.Unlock()
+	return res
 }
 
-func (s *Storage) NewLogGet(r *http.Request, body []byte, httpCode int) {
+func (s *Storage) NewLog(r *http.Request, body []byte, httpCode int, errors string) {
 	s.mtx.Lock()
-	s.logs.CreateAndAddRecordGet(r, body, httpCode)
+	s.logs.CreateAndAddRecord(r, body, httpCode, errors)
 	s.mtx.Unlock()
 }
 
