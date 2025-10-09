@@ -32,11 +32,6 @@ func MakeHandlerControl(storage *storage.Storage) *HandlerControl {
 }
 
 func (h *HandlerControl) Contorol(w http.ResponseWriter, r *http.Request) {
-	defer func() {
-		h.storage.PrintDataBoards()
-		h.storage.PrintDataDevice()
-		h.storage.PrintLogs()
-	}()
 	reqInfo := &RequestInfo{}
 	if r.Method == http.MethodPost {
 		body, err := io.ReadAll(r.Body)

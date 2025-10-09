@@ -54,6 +54,13 @@ func (d *devicesHandler) DevicesHandler(w http.ResponseWriter, r *http.Request) 
 				d.storage.NewLog(r, res, http.StatusInternalServerError, err.Error())
 				return
 			}
+			if deviceInServer, _ := d.storage.GetDeviceInfo(device.ID); deviceInServer.BoadrId != device.BoadrId {
+				w.WriteHeader(http.StatusBadRequest)
+				err := "discrepancy boardID"
+				d.storage.NewLog(r, res, http.StatusBadRequest, err)
+				w.Write([]byte(err))
+				return
+			}
 			if !d.storage.CheckIdDevice(device.ID) {
 				w.WriteHeader(http.StatusBadRequest)
 				err := fmt.Sprintf("invalid device: %s", device.ID)
@@ -89,8 +96,14 @@ func (d *devicesHandler) DevicesHandler(w http.ResponseWriter, r *http.Request) 
 				d.storage.NewLog(r, res, http.StatusBadRequest, err)
 				return
 			}
-			if statusServer := d.storage.GetDeviceStatus(v.ID); statusServer != v.Status {
+			statusServer, _ := d.storage.GetDeviceInfo(v.ID)
+			if statusServer.Status != v.Status {
 				attentions += fmt.Sprintf("Attention! Device %s in esp = %s, server = %s\n", v.ID, statusServer, v.Status)
+			} else if statusServer.BoadrId != v.BoadrId {
+				w.WriteHeader(http.StatusBadRequest)
+				err := "discrepancy boardID"
+				d.storage.NewLog(r, res, http.StatusBadRequest, err)
+				w.Write([]byte(err))
 			}
 		}
 		d.storage.NewLog(r, res, http.StatusOK, attentions)

@@ -49,7 +49,20 @@ func (b *boarsIDHandl) BoardsIDHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		json.Unmarshal(res, &db)
-		b.storage.AddNewBoardInfo(&db)
+		if db.BoardId != boardID {
+			err := "Discrepancy boardID"
+			w.WriteHeader(http.StatusBadRequest)
+			b.storage.NewLog(r, res, http.StatusBadRequest, err)
+			w.Write([]byte(err))
+			return
+		}
+		if !b.storage.AddNewBoardInfo(&db) {
+			err := []byte("Error!Invalid board id")
+			w.WriteHeader(http.StatusBadRequest)
+			b.storage.NewLog(r, res, http.StatusBadRequest, string(err))
+			w.Write(err)
+			return
+		}
 		b.storage.NewLog(r, res, http.StatusOK, "")
 		return
 	}

@@ -23,6 +23,16 @@ func (b *boadsHandler) BoardsHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write(err)
 		return
 	} else {
+		if r.Header.Get("format") == "text" {
+			a := b.storage.GetAllBoardsInfo()
+			str := ""
+			for _, v := range a {
+				str += v.String()
+			}
+			b.storage.NewLog(r, []byte(str), http.StatusOK, "")
+			w.Write([]byte(str))
+			return
+		}
 		res, err := json.MarshalIndent(b.storage.GetAllBoardsInfo(), "", "	")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)

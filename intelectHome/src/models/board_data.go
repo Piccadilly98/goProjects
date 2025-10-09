@@ -16,9 +16,10 @@ type DataBoard struct {
 	BatteryVoltage float32 `json:"voltage"`
 	QuantityDevice int     `json:"quantityDevice"`
 	TimeUpload     time.Time
+	TimeAdded      time.Time
 }
 
 func (d *DataBoard) String() string {
-	return fmt.Sprintf("Board ID: %s\nTempCP: %.2f\nFreeMemory: %d\nTimeWork: %d\nRSSI: %d\nLocalIP: %s\nNetworkIP: %s\nVoltage: %.2f\nQuantityDevice: %d\nTime upload: %v\n",
-		d.BoardId, d.TempCP, d.FreeMemory, d.WorkTimeSecond, d.RSSI, d.LocalIP, d.NetworkIP, d.BatteryVoltage, d.QuantityDevice, d.TimeUpload)
+	return fmt.Sprintf("Board ID: %s\nTempCP: %.2f\nFreeMemory: %d\nTimeWork: %d\nRSSI: %d\nLocalIP: %s\nNetworkIP: %s\nVoltage: %.2f\nQuantityDevice: %d\nTime upload: %v\nTime added: %v",
+		d.BoardId, d.TempCP, d.FreeMemory, d.WorkTimeSecond, d.RSSI, d.LocalIP, d.NetworkIP, d.BatteryVoltage, d.QuantityDevice, d.TimeUpload.String(), d.TimeAdded.String())
 }

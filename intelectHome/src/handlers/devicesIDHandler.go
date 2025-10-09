@@ -31,7 +31,14 @@ func (d *devicesIDHandler) DevicesIDHandler(w http.ResponseWriter, r *http.Reque
 		w.Write([]byte("invalid device id"))
 		return
 	}
-	b, err := json.Marshal(d.storage.GetAllDevicesStatusJson())
+	device, err := d.storage.GetDeviceInfo(deviceID)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		d.storage.NewLog(r, nil, http.StatusBadRequest, err.Error())
+		w.Write([]byte(err.Error()))
+		return
+	}
+	b, err := json.Marshal(device)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		d.storage.NewLog(r, b, http.StatusInternalServerError, err.Error())

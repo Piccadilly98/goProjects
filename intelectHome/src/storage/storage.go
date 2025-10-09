@@ -27,8 +27,9 @@ func MakeStorage() *Storage {
 		boardData:  make(map[string]*models.DataBoard),
 		deviceData: make(map[string]*models.Device_data),
 		mtx:        sync.Mutex{}}
-	storage.boardData["esp32_1"] = &models.DataBoard{BoardId: "esp32_1"}
-	storage.deviceData["led1"] = &models.Device_data{ID: "led1", Status: "off"}
+	storage.AddNewBoard("esp32_1")
+	storage.AddNewDeviceId("led1", "esp32_1")
+	storage.AddNewDeviceId("led2", "esp32_1")
 	return storage
 }
 
@@ -37,9 +38,9 @@ func (s *Storage) UpdateStatusDevice(id, status string) bool {
 		return false
 	}
 	s.mtx.Lock()
-	_, ok := s.deviceData[id]
+	v, ok := s.deviceData[id]
 	if ok {
-		s.deviceData[id] = &models.Device_data{ID: id, Status: status}
+		s.deviceData[id] = &models.Device_data{ID: id, Status: status, BoadrId: v.BoadrId}
 		s.mtx.Unlock()
 		return true
 	}
@@ -86,7 +87,7 @@ func (s *Storage) AddNewDeviceId(id string, boadrID string) {
 
 func (s *Storage) AddNewBoard(id string) {
 	s.mtx.Lock()
-	s.boardData[id] = &models.DataBoard{BoardId: id}
+	s.boardData[id] = &models.DataBoard{BoardId: id, TimeAdded: time.Now()}
 	s.mtx.Unlock()
 }
 
@@ -110,9 +111,28 @@ func (s *Storage) GetAllDevicesStatusString() string {
 	return str
 }
 
-func (s *Storage) AddNewBoardInfo(db *models.DataBoard) {
+func (s *Storage) AddNewBoardInfo(db *models.DataBoard) bool {
+	s.mtx.Lock()
+	_, ok := s.boardData[db.BoardId]
+	if !ok {
+		s.mtx.Unlock()
+		return false
+	}
+	db.TimeAdded = s.boardData[db.BoardId].TimeAdded
 	s.boardData[db.BoardId] = db
 	s.boardData[db.BoardId].TimeUpload = time.Now()
+	s.mtx.Unlock()
+	return true
+}
+
+func (s *Storage) GetDeviceInfo(id string) (models.Device_data, error) {
+	s.mtx.Lock()
+	v, ok := s.deviceData[id]
+	s.mtx.Unlock()
+	if ok {
+		return *v, nil
+	}
+	return models.Device_data{}, fmt.Errorf("invalid device id")
 }
 
 func (s *Storage) GetDeviceStatus(id string) string {
@@ -146,7 +166,13 @@ func (s *Storage) GetAllBoardsInfo() []models.DataBoard {
 	return res
 }
 
-func (s *Storage) NewLog(r *http.Request, body []byte, httpCode int, errors string) {
+func (s *Storage) GetAllLogs() string {
+	s.mtx.Lock()
+	str := s.logs.String()
+	s.mtx.Unlock()
+	return str
+}
+func (s *Storage) NewLog(r *http.Request, body []byte, httpCode int, errors string, a ...any) {
 	s.mtx.Lock()
 	s.logs.CreateAndAddRecord(r, body, httpCode, errors)
 	s.mtx.Unlock()

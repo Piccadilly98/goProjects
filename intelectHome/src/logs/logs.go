@@ -7,7 +7,7 @@ import (
 )
 
 type Logs struct {
-	records []string
+	Records []string
 }
 
 func MakeNewLogsInfo() *Logs {
@@ -15,18 +15,18 @@ func MakeNewLogsInfo() *Logs {
 }
 
 func newRecords(record string, l *Logs) {
-	l.records = append(l.records, record)
+	l.Records = append(l.Records, record)
 }
 
 func (l *Logs) String() string {
 	str := ""
-	for i, v := range l.records {
+	for i, v := range l.Records {
 		str += fmt.Sprintf("Records %d: %s\n", i+1, v)
 	}
 	return str
 }
 
-func (l *Logs) CreateAndAddRecord(r *http.Request, body []byte, httpCode int, errors string) {
+func (l *Logs) CreateAndAddRecord(r *http.Request, body []byte, httpCode int, errors string, a ...any) {
 	str := fmt.Sprintf("Time: %v\nUrl: %s\nMehod: %v\nBody: %s\nCode: %d\nErrors: %s\n", time.Now(), r.URL, r.Method, string(body), httpCode, errors)
 	newRecords(str, l)
 }
