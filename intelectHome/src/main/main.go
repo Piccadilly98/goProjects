@@ -28,10 +28,10 @@ func main() {
 	r.HandleFunc("/devices/{deviceID}", devicesID.DevicesIDHandler)
 	r.HandleFunc("/logs", logs.LogsHandler)
 	go func() {
-		time.Sleep(5 * time.Minute)
+		time.Sleep(15 * time.Minute)
 		os.Exit(1)
 	}()
-	err := http.ListenAndServe("localhost:8080", r)
+	err := http.ListenAndServe(":8080", r)
 	if err != nil {
 		log.Fatal(err)
 	}

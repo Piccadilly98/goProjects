@@ -37,13 +37,15 @@ func (l *logsHandler) LogsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logs := l.storage.GetAllLogs()
+	// logs = strings.ReplaceAll(logs, "\n", "\\n")
+	// logs = strings.ReplaceAll(logs, "\t", "\\t")
+	// logs = strings.ReplaceAll(logs, "\r", "\\r")
 	b, err := json.Marshal(logs)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		l.storage.NewLog(r, b, http.StatusInternalServerError, err.Error())
 		return
 	}
-	l.storage.NewLog(r, b, http.StatusOK, "")
 	w.WriteHeader(http.StatusOK)
 	w.Write(b)
 }

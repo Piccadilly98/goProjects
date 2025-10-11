@@ -29,7 +29,6 @@ func MakeStorage() *Storage {
 		mtx:        sync.Mutex{}}
 	storage.AddNewBoard("esp32_1")
 	storage.AddNewDeviceId("led1", "esp32_1")
-	storage.AddNewDeviceId("led2", "esp32_1")
 	return storage
 }
 
