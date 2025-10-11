@@ -3,10 +3,10 @@ package storage
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
-	"github.com/Piccadilly98/goProjects/intelectHome/src/logs"
 	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
 )
 
@@ -16,14 +16,16 @@ const (
 )
 
 type Storage struct {
-	logs       *logs.Logs
+	logs       map[int]string
+	logsLength int
 	boardData  map[string]*models.DataBoard
 	deviceData map[string]*models.Device_data
 	mtx        sync.Mutex
 }
 
 func MakeStorage() *Storage {
-	storage := &Storage{logs: logs.MakeNewLogsInfo(),
+	storage := &Storage{logs: make(map[int]string),
+		logsLength: 0,
 		boardData:  make(map[string]*models.DataBoard),
 		deviceData: make(map[string]*models.Device_data),
 		mtx:        sync.Mutex{}}
@@ -53,9 +55,17 @@ func (s *Storage) UpdateBoardDevice(id string, board string) {
 
 func (s *Storage) PrintLogs() {
 	s.mtx.Lock()
-	l := s.logs.String()
+	str := ""
+	keys := make([]int, 0)
+	for k, _ := range s.logs {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	for _, v := range keys {
+		str += fmt.Sprintf("%d: %s\n", v, s.logs[v])
+	}
+	fmt.Println(str)
 	s.mtx.Unlock()
-	fmt.Println(l)
 }
 
 func (s *Storage) PrintDataBoards() {
@@ -167,16 +177,70 @@ func (s *Storage) GetAllBoardsInfo() []models.DataBoard {
 
 func (s *Storage) GetAllLogs() string {
 	s.mtx.Lock()
-	str := s.logs.String()
+	str := ""
+	keys := make([]int, 0)
+	for k := range s.logs {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	for _, v := range keys {
+		str += fmt.Sprintf("%d: %s\n", v, s.logs[v])
+	}
 	s.mtx.Unlock()
 	return str
 }
 func (s *Storage) NewLog(r *http.Request, body []byte, httpCode int, errors string, a ...any) {
 	s.mtx.Lock()
-	s.logs.CreateAndAddRecord(r, body, httpCode, errors)
+	s.logsLength++
+	s.logs[s.logsLength] = fmt.Sprintf("Time %v -- URL: %s -- Method: %s -- Body: %s -- Code: %d -- Errors: %s --",
+		time.Now().String(),
+		r.URL.String(),
+		r.Method,
+		body,
+		httpCode,
+		errors)
 	s.mtx.Unlock()
 }
 
+func (s *Storage) GetLog(ID int) (string, error) {
+	s.mtx.Lock()
+	v, ok := s.logs[ID]
+	s.mtx.Unlock()
+	if ok {
+		return v, nil
+	}
+	return "", fmt.Errorf("invalid id: %d", ID)
+}
+
+func (s *Storage) GetAllLogsJSON() []models.LogsJSON {
+	res := make([]models.LogsJSON, 0)
+	s.mtx.Lock()
+	keys := make([]int, 0)
+	for k, _ := range s.logs {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	for _, k := range keys {
+		res = append(res, models.LogsJSON{LogsID: k, LogsInfo: s.logs[k]})
+	}
+	s.mtx.Unlock()
+	return res
+}
+
+func (s *Storage) GetLogJson(ID int) models.LogsJSON {
+	res, err := s.GetLog(ID)
+	if err != nil {
+		return models.LogsJSON{}
+	}
+	logJSON := models.LogsJSON{LogsID: ID, LogsInfo: res}
+	return logJSON
+}
+func (s *Storage) GetMaxIDLogs() int {
+	s.mtx.Lock()
+	i := s.logsLength
+	s.mtx.Unlock()
+	return i
+}
 func (s *Storage) CheckIdDevice(id string) bool {
 	s.mtx.Lock()
 	_, ok := s.deviceData[id]
