@@ -10,7 +10,6 @@ import (
 )
 
 const (
-	key        = "key123"
 	headersKey = "format"
 	format     = "JSON"
 )
@@ -31,15 +30,7 @@ func (l *logsHandler) LogsHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err))
 		return
 	}
-	keyParam := r.URL.Query().Get("key")
 	formatKey := r.Header.Get(headersKey)
-	if keyParam != key {
-		err := "error key"
-		w.WriteHeader(http.StatusBadRequest)
-		l.storage.NewLog(r, []byte(fmt.Sprintf("%s:%s", err, keyParam)), http.StatusBadRequest, err)
-		w.Write([]byte(err))
-		return
-	}
 	logsIDstr := r.URL.Query().Get("logsID")
 	if logsIDstr != "" {
 		logsID, err := strconv.Atoi(logsIDstr)

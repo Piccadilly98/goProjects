@@ -8,10 +8,11 @@ import (
 	"time"
 
 	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
+	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type tokenWorker struct {
+type TokenWorker struct {
 	tokenID atomic.Int64
 }
 
@@ -21,7 +22,7 @@ type ClaimsJSON struct {
 	jwt.RegisteredClaims
 }
 
-func (t *tokenWorker) CreateToken(login, role string, exp time.Duration) (string, error) {
+func (t *TokenWorker) CreateToken(login, role string, exp time.Duration) (string, error) {
 	t.tokenID.Add(1)
 	claims := &ClaimsJSON{
 		Role:    role,
@@ -37,7 +38,7 @@ func (t *tokenWorker) CreateToken(login, role string, exp time.Duration) (string
 	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 }
 
-func ValidationAndParsingToken(tokenStr string) (bool, *ClaimsJSON) {
+func ValidateToken(tokenStr string, stor *storage.Storage) (bool, *ClaimsJSON) {
 	claims := &ClaimsJSON{}
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
 		return []byte(os.Getenv("JWT_SECRET")), nil
@@ -49,10 +50,19 @@ func ValidationAndParsingToken(tokenStr string) (bool, *ClaimsJSON) {
 	if !token.Valid {
 		return false, nil
 	}
-	return true, claims
+	roles := stor.GetAllRoles()
+	if roles == nil {
+		return false, nil
+	}
+	for _, v := range roles {
+		if claims.Role == v {
+			return true, claims
+		}
+	}
+	return false, nil
 }
 
-func (t *tokenWorker) TokenToJSON(tokenStr string) ([]byte, error) {
+func (t *TokenWorker) TokenToJSON(tokenStr string) ([]byte, error) {
 	resp := &models.TokenResponseJSON{}
 	claims := &ClaimsJSON{}
 	resp.AccessToken = tokenStr

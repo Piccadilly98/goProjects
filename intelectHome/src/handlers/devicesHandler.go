@@ -49,8 +49,8 @@ func (d *devicesHandler) DevicesHandler(w http.ResponseWriter, r *http.Request) 
 			var device models.Device_data
 			err = json.Unmarshal(res, &device)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(err.Error()))
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte("empty body!"))
 				d.storage.NewLog(r, res, http.StatusInternalServerError, err.Error())
 				return
 			}

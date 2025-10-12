@@ -20,17 +20,20 @@ type Storage struct {
 	logsLength int
 	boardData  map[string]*models.DataBoard
 	deviceData map[string]*models.Device_data
+	rolesList  []string
 	mtx        sync.Mutex
 }
 
-func MakeStorage() *Storage {
+func MakeStorage(roles ...string) *Storage {
 	storage := &Storage{logs: make(map[int]string),
 		logsLength: 0,
 		boardData:  make(map[string]*models.DataBoard),
 		deviceData: make(map[string]*models.Device_data),
 		mtx:        sync.Mutex{}}
+	storage.rolesList = append(storage.rolesList, roles...)
 	storage.AddNewBoard("esp32_1")
 	storage.AddNewDeviceId("led1", "esp32_1")
+	storage.AddNewDeviceId("led2", "esp32_1")
 	return storage
 }
 
@@ -246,4 +249,15 @@ func (s *Storage) CheckIdDevice(id string) bool {
 	_, ok := s.deviceData[id]
 	s.mtx.Unlock()
 	return ok
+}
+
+func (s *Storage) GetAllRoles() []string {
+	s.mtx.Lock()
+	roles := make([]string, len(s.rolesList))
+	n := copy(roles, s.rolesList)
+	s.mtx.Unlock()
+	if n != len(s.rolesList) {
+		return nil
+	}
+	return roles
 }

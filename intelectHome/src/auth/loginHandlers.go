@@ -10,11 +10,11 @@ import (
 
 type loginHandlers struct {
 	storage     *storage.Storage
-	tokenWorker *tokenWorker
+	tokenWorker *TokenWorker
 }
 
 func MakeLoginHandlers(stor *storage.Storage) *loginHandlers {
-	return &loginHandlers{storage: stor, tokenWorker: &tokenWorker{}}
+	return &loginHandlers{storage: stor, tokenWorker: &TokenWorker{}}
 }
 
 func (l *loginHandlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
@@ -23,7 +23,7 @@ func (l *loginHandlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("invalid method"))
 		return
 	}
-	ok, login, role := ValidateLoginData(r.Body)
+	ok, login, role := ValidateLoginData(r.Body, l.storage)
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("invalid login or password"))
