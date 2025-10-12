@@ -20,6 +20,7 @@ func main() {
 	// fmt.Println(str)
 	// os.Exit(1)
 	r := chi.NewRouter()
+
 	st := storage.MakeStorage("ADMIN", "ESP32_1")
 
 	middleware := auth.MiddlewareAuth(st)
