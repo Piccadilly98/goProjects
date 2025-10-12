@@ -15,10 +15,6 @@ import (
 
 func main() {
 	godotenv.Load("/Users/flowerma/Desktop/goProjects/intelectHome/.env")
-	// worker := auth.TokenWorker{}
-	// str, _ := worker.CreateToken("123", "ADMIN", 24*time.Hour)
-	// fmt.Println(str)
-	// os.Exit(1)
 	r := chi.NewRouter()
 
 	st := storage.MakeStorage("ADMIN", "ESP32_1")
