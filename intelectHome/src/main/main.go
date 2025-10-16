@@ -16,24 +16,23 @@ import (
 func main() {
 	godotenv.Load("/Users/flowerma/Desktop/goProjects/intelectHome/.env")
 	r := chi.NewRouter()
-
 	st := storage.MakeStorage("ADMIN", "ESP32_1")
-
-	middleware := auth.MiddlewareAuth(st)
+	sm := auth.MakeSessionManager()
+	middleware := auth.MiddlewareAuth(st, sm)
 	control := handlers.MakeHandlerControl(st)
 	boardsID := handlers.MakeBoarsIDHandler(st)
 	boards := handlers.MakeBoarsHandler(st)
 	devices := handlers.MakeDevicesHandler(st)
 	devicesID := handlers.MakeDevicesIDHandler(st)
 	logs := handlers.MakeLogsHandler(st)
-	login := auth.MakeLoginHandlers(st)
+	login := auth.MakeLoginHandlers(st, sm)
 
 	r.With(middleware).Route("/", func(r chi.Router) {
 		r.Post("/control", control.Contorol)
 		r.HandleFunc("/boards/{boardID}", boardsID.BoardsIDHandler)
 		r.Get("/boards", boards.BoardsHandler)
 		r.HandleFunc("/devices", devices.DevicesHandler)
-		r.HandleFunc("/devices/{deviceID}", devicesID.DevicesIDHandler)
+		r.Get("/devices/{deviceID}", devicesID.DevicesIDHandler)
 		r.Get("/logs", logs.LogsHandler)
 	})
 	r.HandleFunc("/login", login.LoginHandler)
