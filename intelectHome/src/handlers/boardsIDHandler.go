@@ -20,50 +20,65 @@ func MakeBoarsIDHandler(st *storage.Storage) *boarsIDHandl {
 
 func (b *boarsIDHandl) BoardsIDHandler(w http.ResponseWriter, r *http.Request) {
 	boardID := chi.URLParam(r, "boardID")
+	httpCode := http.StatusOK
+	errors := ""
+	attentions := make([]string, 0)
+	jwtClaims, ok := r.Context().Value("jwtClaims").(*models.ClaimsJSON)
+	if !ok {
+		errors = "server error"
+		w.WriteHeader(http.StatusInternalServerError)
+		b.storage.NewLog(r, nil, httpCode, errors)
+		w.Write([]byte(errors))
+		return
+	}
+	defer func() {
+		b.storage.NewLog(r, jwtClaims, httpCode, errors, attentions...)
+	}()
 	switch r.Method {
 	case http.MethodGet:
 		db, err := b.storage.GetBoardInfo(boardID)
 		if err != nil {
-			w.Write([]byte(err.Error()))
-			w.WriteHeader(http.StatusBadRequest)
-			b.storage.NewLog(r, nil, http.StatusBadRequest, err.Error())
+			errors = err.Error()
+			httpCode = http.StatusBadRequest
+			w.WriteHeader(httpCode)
+			w.Write([]byte(errors))
 			return
 		}
 		res, err := json.Marshal(db)
 		if err != nil {
+			httpCode = http.StatusInternalServerError
+			errors = err.Error()
+			w.WriteHeader(httpCode)
 			w.Write([]byte(err.Error()))
-			w.WriteHeader(http.StatusInternalServerError)
-			b.storage.NewLog(r, nil, http.StatusInternalServerError, err.Error())
 			return
 		}
 		w.Write(res)
-		b.storage.NewLog(r, []byte(db.String()), http.StatusOK, "")
 		return
 	case http.MethodPost:
 		db := models.DataBoard{}
 		res, err := io.ReadAll(r.Body)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
+			httpCode = http.StatusInternalServerError
+			errors = err.Error()
+			w.WriteHeader(httpCode)
 			w.Write([]byte(err.Error()))
-			b.storage.NewLog(r, nil, http.StatusInternalServerError, err.Error())
 			return
 		}
 		json.Unmarshal(res, &db)
 		if db.BoardId != boardID {
-			err := "Discrepancy boardID"
-			w.WriteHeader(http.StatusBadRequest)
-			b.storage.NewLog(r, res, http.StatusBadRequest, err)
-			w.Write([]byte(err))
+			errors = "Discrepancy boardID"
+			httpCode = http.StatusBadRequest
+			w.WriteHeader(httpCode)
+			w.Write([]byte(errors))
 			return
 		}
 		if !b.storage.AddNewBoardInfo(&db) {
-			err := []byte("Error!Invalid board id")
-			w.WriteHeader(http.StatusBadRequest)
-			b.storage.NewLog(r, res, http.StatusBadRequest, string(err))
-			w.Write(err)
+			errors = "Error!Invalid board id"
+			httpCode = http.StatusBadRequest
+			w.WriteHeader(httpCode)
+			w.Write([]byte(errors))
 			return
 		}
-		b.storage.NewLog(r, res, http.StatusOK, "")
 		return
 	}
 }

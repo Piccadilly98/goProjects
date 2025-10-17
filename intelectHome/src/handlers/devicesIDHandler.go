@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
 	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
 	"github.com/go-chi/chi/v5"
 )
@@ -17,33 +18,44 @@ func MakeDevicesIDHandler(stor *storage.Storage) *devicesIDHandler {
 }
 
 func (d *devicesIDHandler) DevicesIDHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		d.storage.NewLog(r, nil, http.StatusMethodNotAllowed, "invalid method")
-		w.Write([]byte("invalid method"))
+
+	httpCode := http.StatusOK
+	errors := ""
+	attentions := make([]string, 0)
+	jwtClaims, ok := r.Context().Value("jwtClaims").(*models.ClaimsJSON)
+	if !ok {
+		errors = "server error"
+		w.WriteHeader(http.StatusInternalServerError)
+		d.storage.NewLog(r, nil, httpCode, errors)
+		w.Write([]byte(errors))
 		return
 	}
+	defer func() {
+		d.storage.NewLog(r, jwtClaims, httpCode, errors, attentions...)
+	}()
 
 	deviceID := chi.URLParam(r, "deviceID")
 	if !d.storage.CheckIdDevice(deviceID) {
-		w.WriteHeader(http.StatusBadRequest)
-		d.storage.NewLog(r, nil, http.StatusBadRequest, "ivalid device id")
-		w.Write([]byte("invalid device id"))
+		httpCode = http.StatusBadRequest
+		errors = "ivalid device id"
+		w.WriteHeader(httpCode)
+		w.Write([]byte(errors))
 		return
 	}
 	device, err := d.storage.GetDeviceInfo(deviceID)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		d.storage.NewLog(r, nil, http.StatusBadRequest, err.Error())
+		httpCode = http.StatusBadRequest
+		errors = err.Error()
+		w.WriteHeader(httpCode)
 		w.Write([]byte(err.Error()))
 		return
 	}
 	b, err := json.Marshal(device)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		d.storage.NewLog(r, b, http.StatusInternalServerError, err.Error())
+		httpCode = http.StatusInternalServerError
+		errors = err.Error()
+		w.WriteHeader(httpCode)
 		return
 	}
-	d.storage.NewLog(r, b, http.StatusOK, "")
 	w.Write(b)
 }

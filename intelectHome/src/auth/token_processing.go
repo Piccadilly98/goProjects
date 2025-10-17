@@ -16,15 +16,9 @@ type TokenWorker struct {
 	tokenID atomic.Int64
 }
 
-type ClaimsJSON struct {
-	Role    string `json:"role"`
-	TokenID int64  `json:"tokenID"`
-	jwt.RegisteredClaims
-}
-
-func (t *TokenWorker) CreateToken(login, role string, exp time.Duration) (string, error) {
+func (t *TokenWorker) CreateToken(login, role string, exp time.Duration) (string, error, int64) {
 	t.tokenID.Add(1)
-	claims := &ClaimsJSON{
+	claims := &models.ClaimsJSON{
 		Role:    role,
 		TokenID: t.tokenID.Load(),
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -34,12 +28,15 @@ func (t *TokenWorker) CreateToken(login, role string, exp time.Duration) (string
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	tokenStr, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	if err != nil {
+		return "", err, 0
+	}
+	return tokenStr, nil, claims.TokenID
 }
 
-func ValidateToken(tokenStr string, stor *storage.Storage) (bool, *ClaimsJSON) {
-	claims := &ClaimsJSON{}
+func ValidateToken(tokenStr string, stor *storage.Storage) (bool, *models.ClaimsJSON) {
+	claims := &models.ClaimsJSON{}
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
 		return []byte(os.Getenv("JWT_SECRET")), nil
 	})
@@ -64,7 +61,7 @@ func ValidateToken(tokenStr string, stor *storage.Storage) (bool, *ClaimsJSON) {
 
 func (t *TokenWorker) TokenToJSON(tokenStr string) ([]byte, error) {
 	resp := &models.TokenResponseJSON{}
-	claims := &ClaimsJSON{}
+	claims := &models.ClaimsJSON{}
 	resp.AccessToken = tokenStr
 	resp.TokenType = "Bearer"
 	_, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {

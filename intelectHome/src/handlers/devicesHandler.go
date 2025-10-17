@@ -19,29 +19,44 @@ func MakeDevicesHandler(stor *storage.Storage) *devicesHandler {
 }
 
 func (d *devicesHandler) DevicesHandler(w http.ResponseWriter, r *http.Request) {
+	httpCode := http.StatusOK
+	errors := ""
+	attentions := make([]string, 0)
+	jwtClaims, ok := r.Context().Value("jwtClaims").(*models.ClaimsJSON)
+	if !ok {
+		errors = "server error"
+		w.WriteHeader(http.StatusInternalServerError)
+		d.storage.NewLog(r, nil, httpCode, errors)
+		w.Write([]byte(errors))
+		return
+	}
+	defer func() {
+		d.storage.NewLog(r, jwtClaims, httpCode, errors, attentions...)
+	}()
+
 	switch r.Method {
 	case http.MethodGet:
 		b, err := json.Marshal(d.storage.GetAllDevicesStatusJson())
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			d.storage.NewLog(r, b, http.StatusInternalServerError, err.Error())
+			httpCode = http.StatusInternalServerError
+			errors = err.Error()
+			w.WriteHeader(httpCode)
 			w.Write([]byte(err.Error()))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		d.storage.NewLog(r, b, http.StatusOK, "")
 		w.Write(b)
 		return
 
 	case http.MethodPost:
 		var deviceStat []models.Device_data
 		body := r.Body
-		attentions := ""
 		res, err := io.ReadAll(body)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
+			httpCode = http.StatusInternalServerError
+			errors = err.Error()
+			w.WriteHeader(httpCode)
 			w.Write([]byte(err.Error()))
-			d.storage.NewLog(r, res, http.StatusInternalServerError, err.Error())
 			return
 		}
 		err = json.Unmarshal(res, &deviceStat)
@@ -49,64 +64,63 @@ func (d *devicesHandler) DevicesHandler(w http.ResponseWriter, r *http.Request) 
 			var device models.Device_data
 			err = json.Unmarshal(res, &device)
 			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte("empty body!"))
-				d.storage.NewLog(r, res, http.StatusInternalServerError, err.Error())
+				httpCode = http.StatusBadRequest
+				errors = "empty body!"
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
 				return
 			}
 			if deviceInServer, _ := d.storage.GetDeviceInfo(device.ID); deviceInServer.BoadrId != device.BoadrId {
-				w.WriteHeader(http.StatusBadRequest)
-				err := "discrepancy boardID"
-				d.storage.NewLog(r, res, http.StatusBadRequest, err)
-				w.Write([]byte(err))
+				httpCode = http.StatusBadRequest
+				errors = "discrepancy boardID"
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
 				return
 			}
 			if !d.storage.CheckIdDevice(device.ID) {
-				w.WriteHeader(http.StatusBadRequest)
-				err := fmt.Sprintf("invalid device: %s", device.ID)
-				w.Write([]byte(err))
-				d.storage.NewLog(r, res, http.StatusBadRequest, err)
+				httpCode = http.StatusBadRequest
+				errors = fmt.Sprintf("invalid device: %s", device.ID)
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
 				return
 			}
 			if !d.storage.UpdateStatusDevice(device.ID, device.Status) {
-				w.WriteHeader(http.StatusBadRequest)
-				err := fmt.Sprintf("error in update Status device: %s", device.ID)
-				w.Write([]byte(err))
-				d.storage.NewLog(r, res, http.StatusBadRequest, err)
+				httpCode = http.StatusBadRequest
+				errors = fmt.Sprintf("error in update Status device: %s", device.ID)
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
 				return
 			}
 			if statusServer := d.storage.GetDeviceStatus(device.ID); statusServer != device.ID {
-				attentions += fmt.Sprintf("Attention! Device %s in esp = %s, server = %s\n", device.ID, statusServer, device.Status)
+				attentions = append(attentions, fmt.Sprintf("Attention! Device %s in esp = %s, server = %s\n", device.ID, statusServer, device.Status))
 			}
-			d.storage.NewLog(r, res, http.StatusOK, attentions)
 			return
 		}
 		for _, v := range deviceStat {
 			if !d.storage.CheckIdDevice(v.ID) {
-				w.WriteHeader(http.StatusBadRequest)
-				err := fmt.Sprintf("invalid device: %s", v.ID)
-				w.Write([]byte(err))
-				d.storage.NewLog(r, res, http.StatusBadRequest, err)
+				httpCode = http.StatusBadRequest
+				errors = fmt.Sprintf("invalid device: %s", v.ID)
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
 				return
 			}
 			if !d.storage.UpdateStatusDevice(v.ID, v.Status) {
-				w.WriteHeader(http.StatusBadRequest)
-				err := fmt.Sprintf("error in update Status device: %s", v.ID)
-				w.Write([]byte(err))
-				d.storage.NewLog(r, res, http.StatusBadRequest, err)
+				httpCode = http.StatusBadRequest
+				errors = fmt.Sprintf("error in update Status device: %s", v.ID)
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
 				return
 			}
 			statusServer, _ := d.storage.GetDeviceInfo(v.ID)
 			if statusServer.Status != v.Status {
-				attentions += fmt.Sprintf("Attention! Device %s in esp = %s, server = %s\n", v.ID, statusServer, v.Status)
+				attentions = append(attentions, fmt.Sprintf("Attention! Device %s in esp = %s, server = %s\n", v.ID, statusServer, v.Status))
 			} else if statusServer.BoadrId != v.BoadrId {
+				httpCode = http.StatusBadRequest
+				errors = "discrepancy boardID"
 				w.WriteHeader(http.StatusBadRequest)
-				err := "discrepancy boardID"
-				d.storage.NewLog(r, res, http.StatusBadRequest, err)
-				w.Write([]byte(err))
+				w.Write([]byte(errors))
 			}
 		}
-		d.storage.NewLog(r, res, http.StatusOK, attentions)
 		return
 	}
 }

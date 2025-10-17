@@ -5,55 +5,74 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
 	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
 )
 
-func MiddlewareAuth(stor *storage.Storage) func(http.Handler) http.Handler {
+func MiddlewareAuth(stor *storage.Storage, sm *sessionManager) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpCode := http.StatusOK
+			errors := ""
+			attentions := make([]string, 0)
+			var jwtClaims *models.ClaimsJSON = nil
+			deferNeed := true
+			defer func() {
+				if deferNeed {
+					stor.NewLog(r, jwtClaims, httpCode, errors, attentions...)
+				}
+			}()
+
 			header := r.Header.Get("Authorization")
 			if header == "" {
-				w.WriteHeader(http.StatusForbidden)
-				w.Write([]byte("No authorizations!"))
+				httpCode = http.StatusForbidden
+				errors = "No authorizations method and token!"
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
 				return
 			}
 			if !strings.Contains(header, "Bearer") {
-				w.WriteHeader(http.StatusForbidden)
-				w.Write([]byte("No authorizations method!"))
+				httpCode = http.StatusForbidden
+				errors = "No authorizations method!"
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
 				return
 			}
 			header = strings.ReplaceAll(header, "Bearer", "")
 			header = strings.TrimSpace(header)
 			if header == "" {
-				w.WriteHeader(http.StatusForbidden)
-				w.Write([]byte("No JWT Token!"))
+				httpCode = http.StatusForbidden
+				errors = "NO JWT TOKEN!"
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
 				return
 			}
 			ok, claims := ValidateToken(header, stor)
 			if !ok {
-				w.WriteHeader(http.StatusForbidden)
-				w.Write([]byte("Invalid token!"))
+				httpCode = http.StatusForbidden
+				errors = "Invalid token!"
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
 				return
 			}
+			// if sm.CheckBlackListJWT(claims.TokenID) {
+			// 	httpCode = http.StatusBadRequest
+			// 	errors = "jwt in BL"
+			// 	w.WriteHeader(httpCode)
+			// 	return
+			// }
+			jwtClaims = claims
 			if claims.Role == "ADMIN" {
-				id, err := claims.GetSubject()
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-				ctx := context.WithValue(r.Context(), "userID", id)
+				ctx := context.WithValue(r.Context(), "jwtClaims", claims)
 				next.ServeHTTP(w, r.WithContext(ctx))
+				deferNeed = false
 				return
 			}
 			if strings.HasPrefix(claims.Role, "ESP32") {
 				if strings.HasPrefix(r.URL.Path, "/boards") || strings.HasPrefix(r.URL.Path, "/devices") {
-					id, err := claims.GetSubject()
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					}
-					ctx := context.WithValue(r.Context(), "userID", id)
+					ctx := context.WithValue(r.Context(), "jwtClaims", claims)
 					next.ServeHTTP(w, r.WithContext(ctx))
+					deferNeed = false
 					return
 				}
 				w.WriteHeader(http.StatusForbidden)

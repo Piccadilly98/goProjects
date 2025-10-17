@@ -18,6 +18,8 @@ func main() {
 	r := chi.NewRouter()
 	st := storage.MakeStorage("ADMIN", "ESP32_1")
 	sm := auth.MakeSessionManager()
+
+	tw := &auth.TokenWorker{}
 	middleware := auth.MiddlewareAuth(st, sm)
 	control := handlers.MakeHandlerControl(st)
 	boardsID := handlers.MakeBoarsIDHandler(st)
@@ -25,7 +27,7 @@ func main() {
 	devices := handlers.MakeDevicesHandler(st)
 	devicesID := handlers.MakeDevicesIDHandler(st)
 	logs := handlers.MakeLogsHandler(st)
-	login := auth.MakeLoginHandlers(st, sm)
+	login := auth.MakeLoginHandlers(st, sm, tw)
 
 	r.With(middleware).Route("/", func(r chi.Router) {
 		r.Post("/control", control.Contorol)

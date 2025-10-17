@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -192,16 +193,44 @@ func (s *Storage) GetAllLogs() string {
 	s.mtx.Unlock()
 	return str
 }
-func (s *Storage) NewLog(r *http.Request, body []byte, httpCode int, errors string, a ...any) {
+func (s *Storage) NewLog(r *http.Request, claims *models.ClaimsJSON, httpCode int, errors string, attentions ...string) {
+	userID := "not contains"
+	var jwtID int64 = 0
+	role := "not contains"
+	if claims != nil {
+		login, err := claims.GetSubject()
+		if err != nil {
+			userID = claims.Role
+		}
+		userID = login
+		jwtID = claims.TokenID
+		role = claims.Role
+	}
+	attentionsStr := ""
+	for _, v := range attentions {
+		attentionsStr += v
+		attentionsStr += "	"
+	}
 	s.mtx.Lock()
 	s.logsLength++
-	s.logs[s.logsLength] = fmt.Sprintf("Time %v -- URL: %s -- Method: %s -- Body: %s -- Code: %d -- Errors: %s --",
+	if s.logsLength > 200 {
+		for s.logsLength >= 0 {
+			delete(s.logs, s.logsLength)
+			s.logsLength--
+		}
+		s.logsLength = 1
+	}
+	s.logs[s.logsLength] = fmt.Sprintf("Time %v -- IP: %s -- URL: %s -- Method: %s -- UserID: %s -- TokenID: %v -- Role: %s --  Code: %d -- Errors: %s -- Attentions: %s",
 		time.Now().String(),
-		r.URL.String(),
+		r.RemoteAddr,
+		r.URL.Path,
 		r.Method,
-		body,
+		userID,
+		jwtID,
+		role,
 		httpCode,
-		errors)
+		errors,
+		attentionsStr)
 	s.mtx.Unlock()
 }
 
@@ -219,7 +248,7 @@ func (s *Storage) GetAllLogsJSON() []models.LogsJSON {
 	res := make([]models.LogsJSON, 0)
 	s.mtx.Lock()
 	keys := make([]int, 0)
-	for k, _ := range s.logs {
+	for k := range s.logs {
 		keys = append(keys, k)
 	}
 	sort.Ints(keys)
@@ -238,6 +267,20 @@ func (s *Storage) GetLogJson(ID int) models.LogsJSON {
 	logJSON := models.LogsJSON{LogsID: ID, LogsInfo: res}
 	return logJSON
 }
+
+func (s *Storage) GetLogsJWTIDJSON(id string) []models.LogsJSON {
+	logs := make([]models.LogsJSON, 0)
+	targetStr := fmt.Sprintf("TokenID: %s", id)
+	s.mtx.Lock()
+	for k, v := range s.logs {
+		if strings.Contains(v, targetStr) {
+			logs = append(logs, models.LogsJSON{LogsID: k, LogsInfo: v})
+		}
+	}
+	s.mtx.Unlock()
+	return logs
+}
+
 func (s *Storage) GetMaxIDLogs() int {
 	s.mtx.Lock()
 	i := s.logsLength

@@ -2,10 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
 	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
 )
 
@@ -23,43 +23,77 @@ func MakeLogsHandler(stor *storage.Storage) *logsHandler {
 }
 
 func (l *logsHandler) LogsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		err := "invalid method"
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		l.storage.NewLog(r, nil, http.StatusMethodNotAllowed, err)
-		w.Write([]byte(err))
-		return
-	}
 	formatKey := r.Header.Get(headersKey)
 	logsIDstr := r.URL.Query().Get("logsID")
+	jwtIDstr := r.URL.Query().Get("jwtID")
+
+	httpCode := http.StatusOK
+	errors := ""
+	attentions := make([]string, 0)
+	jwtClaims, ok := r.Context().Value("jwtClaims").(*models.ClaimsJSON)
+	if !ok {
+		errors = "server error"
+		w.WriteHeader(http.StatusInternalServerError)
+		l.storage.NewLog(r, nil, httpCode, errors)
+		w.Write([]byte(errors))
+		return
+	}
+	defer func() {
+		l.storage.NewLog(r, jwtClaims, httpCode, errors, attentions...)
+	}()
+	if jwtIDstr != "" {
+		logs := l.storage.GetLogsJWTIDJSON(jwtIDstr)
+		if len(logs) == 0 {
+			errors = "invalid jwtID"
+			httpCode = http.StatusBadRequest
+			w.WriteHeader(httpCode)
+			w.Write([]byte(errors))
+			return
+		}
+		if formatKey == format {
+			b, err := json.Marshal(logs)
+			if err != nil {
+				errors = err.Error()
+				httpCode = http.StatusInternalServerError
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
+				return
+			}
+			w.Write(b)
+			return
+		}
+	}
 	if logsIDstr != "" {
 		logsID, err := strconv.Atoi(logsIDstr)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			err := "invalid ID"
-			l.storage.NewLog(r, []byte(fmt.Sprintf("%s:%s", err, logsIDstr)), http.StatusBadRequest, err)
-			w.Write([]byte(err))
+			httpCode = http.StatusBadRequest
+			errors = "invalid ID"
+			w.WriteHeader(httpCode)
+			w.Write([]byte(errors))
 			return
 		}
 		log, err := l.storage.GetLog(logsID)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			l.storage.NewLog(r, []byte(fmt.Sprintf("%s:%s", err.Error(), log)), http.StatusBadRequest, err.Error())
+			httpCode = http.StatusBadRequest
+			errors = err.Error()
+			w.WriteHeader(httpCode)
 			w.Write([]byte(err.Error()))
 			return
 		}
 		if formatKey != "" {
 			if formatKey != format {
-				w.WriteHeader(http.StatusBadRequest)
-				err := "invalid format key"
-				l.storage.NewLog(r, []byte(formatKey), http.StatusBadRequest, err)
-				w.Write([]byte(err))
+				errors = "invalid format key"
+				httpCode = http.StatusBadRequest
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
 				return
 			}
 			log := l.storage.GetLogJson(logsID)
 			b, err := json.Marshal(log)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
+				httpCode = http.StatusInternalServerError
+				errors = err.Error()
+				w.WriteHeader(httpCode)
 				return
 			}
 			w.Write(b)
@@ -73,30 +107,29 @@ func (l *logsHandler) LogsHandler(w http.ResponseWriter, r *http.Request) {
 			logs := l.storage.GetAllLogsJSON()
 			b, err := json.Marshal(logs)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				l.storage.NewLog(r, []byte(formatKey), http.StatusInternalServerError, err.Error())
+				httpCode = http.StatusInternalServerError
+				errors = err.Error()
+				w.WriteHeader(httpCode)
 				w.Write([]byte(err.Error()))
 				return
 			}
 			w.Write(b)
 			return
 		}
-		err := "invalid formatkey"
-		w.WriteHeader(http.StatusBadRequest)
-		l.storage.NewLog(r, []byte(formatKey), http.StatusBadRequest, err)
-		w.Write([]byte(err))
+		errors = "invalid formatKey"
+		httpCode = http.StatusBadRequest
+		w.WriteHeader(httpCode)
+		w.Write([]byte(errors))
 		return
 	}
 	logs := l.storage.GetAllLogs()
-	// logs = strings.ReplaceAll(logs, "\n", "\\n")
-	// logs = strings.ReplaceAll(logs, "\t", "\\t")
-	// logs = strings.ReplaceAll(logs, "\r", "\\r")
 	b, err := json.Marshal(logs)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		l.storage.NewLog(r, b, http.StatusInternalServerError, err.Error())
+		httpCode = http.StatusInternalServerError
+		errors = err.Error()
+		w.WriteHeader(httpCode)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(httpCode)
 	w.Write(b)
 }

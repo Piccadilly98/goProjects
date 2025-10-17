@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
 	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
 )
 
@@ -16,33 +17,38 @@ func MakeBoarsHandler(stor *storage.Storage) *boadsHandler {
 }
 
 func (b *boadsHandler) BoardsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		err := []byte("InvalidMethod")
-		b.storage.NewLog(r, nil, http.StatusMethodNotAllowed, string(err))
-		w.Write(err)
-		return
-	} else {
-		if r.Header.Get("format") == "text" {
-			a := b.storage.GetAllBoardsInfo()
-			str := ""
-			for _, v := range a {
-				str += v.String()
-			}
-			b.storage.NewLog(r, []byte(str), http.StatusOK, "")
-			w.Write([]byte(str))
-			return
-		}
-		res, err := json.MarshalIndent(b.storage.GetAllBoardsInfo(), "", "	")
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			b.storage.NewLog(r, res, http.StatusInternalServerError, err.Error())
-			w.Write([]byte(err.Error()))
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		b.storage.NewLog(r, res, http.StatusOK, "")
-		w.Write(res)
+	httpCode := http.StatusOK
+	errors := ""
+	attentions := make([]string, 0)
+	jwtClaims, ok := r.Context().Value("jwtClaims").(*models.ClaimsJSON)
+	if !ok {
+		errors = "server error"
+		w.WriteHeader(http.StatusInternalServerError)
+		b.storage.NewLog(r, nil, httpCode, errors)
+		w.Write([]byte(errors))
 		return
 	}
+	defer func() {
+		b.storage.NewLog(r, jwtClaims, httpCode, errors, attentions...)
+	}()
+	if r.Header.Get("format") == "text" {
+		a := b.storage.GetAllBoardsInfo()
+		httpCode = http.StatusOK
+		str := ""
+		for _, v := range a {
+			str += v.String()
+		}
+		w.Write([]byte(str))
+		return
+	}
+	res, err := json.MarshalIndent(b.storage.GetAllBoardsInfo(), "", "	")
+	if err != nil {
+		httpCode = http.StatusInternalServerError
+		w.WriteHeader(httpCode)
+		errors = err.Error()
+		w.Write([]byte(err.Error()))
+		return
+	}
+	w.WriteHeader(httpCode)
+	w.Write(res)
 }
