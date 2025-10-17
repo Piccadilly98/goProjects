@@ -65,7 +65,7 @@ func MiddlewareAuth(stor *storage.Storage, sm *sessionManager) func(http.Handler
 				return
 			}
 			if strings.HasPrefix(claims.Role, "ESP32") {
-				if strings.HasPrefix(r.URL.Path, "/boards") || strings.HasPrefix(r.URL.Path, "/devices") {
+				if strings.HasPrefix(r.URL.Path, "/boards/") || strings.HasPrefix(r.URL.Path, "/devices/") {
 					ctx := context.WithValue(r.Context(), ctxKey, claims)
 					next.ServeHTTP(w, r.WithContext(ctx))
 					deferNeed = false

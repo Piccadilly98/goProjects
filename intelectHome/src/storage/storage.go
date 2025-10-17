@@ -281,6 +281,18 @@ func (s *Storage) GetLogsJWTIDJSON(id string) []models.LogsJSON {
 	return logs
 }
 
+func (s *Storage) GetLogsJWTIDString(id string) string {
+	targetStr := fmt.Sprintf("TokenID: %s", id)
+	str := ""
+	s.mtx.Lock()
+	for k, v := range s.logs {
+		if strings.Contains(v, targetStr) {
+			str += fmt.Sprintf("%d: %s", k, v)
+		}
+	}
+	s.mtx.Unlock()
+	return str
+}
 func (s *Storage) GetMaxIDLogs() int {
 	s.mtx.Lock()
 	i := s.logsLength

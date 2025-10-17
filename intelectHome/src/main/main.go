@@ -29,7 +29,7 @@ func main() {
 	login := auth.MakeLoginHandlers(st, sm, tw)
 
 	r.With(middleware).Route("/", func(r chi.Router) {
-		r.Post("/control", control.Contorol)
+		r.Post("/control", control.Control)
 		r.HandleFunc("/boards/{boardID}", boardsID.BoardsIDHandler)
 		r.Get("/boards", boards.BoardsHandler)
 		r.HandleFunc("/devices", devices.DevicesHandler)

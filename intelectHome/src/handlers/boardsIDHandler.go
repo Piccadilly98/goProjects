@@ -20,6 +20,7 @@ func MakeBoarsIDHandler(st *storage.Storage) *boarsIDHandl {
 
 func (b *boarsIDHandl) BoardsIDHandler(w http.ResponseWriter, r *http.Request) {
 	boardID := chi.URLParam(r, "boardID")
+
 	httpCode := http.StatusOK
 	errors := ""
 	attentions := make([]string, 0)
@@ -34,6 +35,7 @@ func (b *boarsIDHandl) BoardsIDHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		b.storage.NewLog(r, jwtClaims, httpCode, errors, attentions...)
 	}()
+
 	switch r.Method {
 	case http.MethodGet:
 		db, err := b.storage.GetBoardInfo(boardID)
@@ -54,6 +56,7 @@ func (b *boarsIDHandl) BoardsIDHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Write(res)
 		return
+
 	case http.MethodPost:
 		db := models.DataBoard{}
 		res, err := io.ReadAll(r.Body)

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -11,7 +12,7 @@ import (
 
 const (
 	headersKey = "format"
-	format     = "JSON"
+	format     = "text"
 )
 
 type logsHandler struct {
@@ -23,7 +24,7 @@ func MakeLogsHandler(stor *storage.Storage) *logsHandler {
 }
 
 func (l *logsHandler) LogsHandler(w http.ResponseWriter, r *http.Request) {
-	formatKey := r.Header.Get(headersKey)
+	formatValue := r.Header.Get(headersKey)
 	logsIDstr := r.URL.Query().Get("logsID")
 	jwtIDstr := r.URL.Query().Get("jwtID")
 
@@ -41,85 +42,41 @@ func (l *logsHandler) LogsHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		l.storage.NewLog(r, jwtClaims, httpCode, errors, attentions...)
 	}()
-	if jwtIDstr != "" {
-		logs := l.storage.GetLogsJWTIDJSON(jwtIDstr)
-		if len(logs) == 0 {
-			errors = "invalid jwtID"
-			httpCode = http.StatusBadRequest
-			w.WriteHeader(httpCode)
-			w.Write([]byte(errors))
-			return
-		}
-		if formatKey == format {
-			b, err := json.Marshal(logs)
-			if err != nil {
-				errors = err.Error()
-				httpCode = http.StatusInternalServerError
-				w.WriteHeader(httpCode)
-				w.Write([]byte(errors))
-				return
-			}
-			w.Write(b)
-			return
-		}
-	}
+
 	if logsIDstr != "" {
-		logsID, err := strconv.Atoi(logsIDstr)
+		b, httpCode, err := l.GetLogIdFormat(logsIDstr, formatValue)
 		if err != nil {
-			httpCode = http.StatusBadRequest
-			errors = "invalid ID"
+			errors = err.Error()
 			w.WriteHeader(httpCode)
 			w.Write([]byte(errors))
 			return
 		}
-		log, err := l.storage.GetLog(logsID)
+		w.Write(b)
+		return
+	}
+	if jwtIDstr != "" {
+		b, httpCode, err := l.GetLogsJwtIdFormat(jwtIDstr, formatValue)
 		if err != nil {
-			httpCode = http.StatusBadRequest
 			errors = err.Error()
 			w.WriteHeader(httpCode)
 			w.Write([]byte(err.Error()))
 			return
 		}
-		if formatKey != "" {
-			if formatKey != format {
-				errors = "invalid format key"
-				httpCode = http.StatusBadRequest
-				w.WriteHeader(httpCode)
-				w.Write([]byte(errors))
-				return
-			}
-			log := l.storage.GetLogJson(logsID)
-			b, err := json.Marshal(log)
-			if err != nil {
-				httpCode = http.StatusInternalServerError
-				errors = err.Error()
-				w.WriteHeader(httpCode)
-				return
-			}
-			w.Write(b)
-			return
-		}
-		w.Write([]byte(log))
+		w.Write(b)
 		return
 	}
-	if formatKey != "" {
-		if formatKey == format {
-			logs := l.storage.GetAllLogsJSON()
-			b, err := json.Marshal(logs)
-			if err != nil {
-				httpCode = http.StatusInternalServerError
-				errors = err.Error()
-				w.WriteHeader(httpCode)
-				w.Write([]byte(err.Error()))
-				return
-			}
-			w.Write(b)
+
+	if formatValue != format {
+		logsJson := l.storage.GetAllLogsJSON()
+		b, err := json.Marshal(logsJson)
+		if err != nil {
+			httpCode = http.StatusInternalServerError
+			errors = err.Error()
+			w.WriteHeader(httpCode)
+			w.Write([]byte(errors))
 			return
 		}
-		errors = "invalid formatKey"
-		httpCode = http.StatusBadRequest
-		w.WriteHeader(httpCode)
-		w.Write([]byte(errors))
+		w.Write(b)
 		return
 	}
 	logs := l.storage.GetAllLogs()
@@ -128,8 +85,68 @@ func (l *logsHandler) LogsHandler(w http.ResponseWriter, r *http.Request) {
 		httpCode = http.StatusInternalServerError
 		errors = err.Error()
 		w.WriteHeader(httpCode)
+		w.Write([]byte(errors))
 		return
 	}
-	w.WriteHeader(httpCode)
 	w.Write(b)
+
+}
+
+func (l *logsHandler) GetLogIdFormat(logsIDstr string, formatValue string) ([]byte, int, error) {
+	httpCode := 200
+	logsID, err := strconv.Atoi(logsIDstr)
+	if err != nil {
+		httpCode = http.StatusInternalServerError
+		return nil, httpCode, err
+	}
+
+	if formatValue != format {
+		logsIDjson := l.storage.GetLogJson(logsID)
+		b, err := json.Marshal(logsIDjson)
+		if err != nil {
+			httpCode = http.StatusInternalServerError
+			return nil, httpCode, err
+		}
+		return b, httpCode, nil
+	} else if formatValue == format {
+		logString, err := l.storage.GetLog(logsID)
+		if err != nil {
+			httpCode = http.StatusBadRequest
+			return nil, httpCode, err
+		}
+		b, err := json.Marshal(logString)
+		if err != nil {
+			httpCode = http.StatusInternalServerError
+			return nil, httpCode, err
+		}
+		return b, httpCode, err
+	} else {
+		httpCode = http.StatusBadRequest
+		return nil, httpCode, fmt.Errorf("invalid format")
+	}
+}
+
+func (l *logsHandler) GetLogsJwtIdFormat(jwtIDstr string, formatValue string) ([]byte, int, error) {
+	httpCode := 200
+
+	if formatValue != format {
+		logsIDjson := l.storage.GetLogsJWTIDJSON(jwtIDstr)
+		b, err := json.Marshal(logsIDjson)
+		if err != nil {
+			httpCode = http.StatusInternalServerError
+			return nil, httpCode, err
+		}
+		return b, httpCode, nil
+	} else if formatValue == format {
+		logString := l.storage.GetLogsJWTIDString(jwtIDstr)
+		b, err := json.Marshal(logString)
+		if err != nil {
+			httpCode = http.StatusInternalServerError
+			return nil, httpCode, err
+		}
+		return b, httpCode, err
+	} else {
+		httpCode = http.StatusBadRequest
+		return nil, httpCode, fmt.Errorf("invalid format")
+	}
 }
