@@ -18,7 +18,6 @@ func main() {
 	r := chi.NewRouter()
 	st := storage.MakeStorage("ADMIN", "ESP32_1")
 	sm := auth.MakeSessionManager()
-
 	tw := &auth.TokenWorker{}
 	middleware := auth.MiddlewareAuth(st, sm)
 	control := handlers.MakeHandlerControl(st)
@@ -36,8 +35,9 @@ func main() {
 		r.HandleFunc("/devices", devices.DevicesHandler)
 		r.Get("/devices/{deviceID}", devicesID.DevicesIDHandler)
 		r.Get("/logs", logs.LogsHandler)
+		r.Post("/login", login.LoginHandler)
 	})
-	r.HandleFunc("/login", login.LoginHandler)
+
 	go func() {
 		time.Sleep(15 * time.Minute)
 		os.Exit(1)

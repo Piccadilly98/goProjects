@@ -8,6 +8,11 @@ import (
 	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
 )
 
+const (
+	key          = "format"
+	formatBoards = "text"
+)
+
 type boadsHandler struct {
 	storage *storage.Storage
 }
@@ -31,11 +36,12 @@ func (b *boadsHandler) BoardsHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		b.storage.NewLog(r, jwtClaims, httpCode, errors, attentions...)
 	}()
-	if r.Header.Get("format") == "text" {
-		a := b.storage.GetAllBoardsInfo()
+
+	if r.Header.Get(key) == formatBoards {
+		boards := b.storage.GetAllBoardsInfo()
 		httpCode = http.StatusOK
 		str := ""
-		for _, v := range a {
+		for _, v := range boards {
 			str += v.String()
 		}
 		w.Write([]byte(str))

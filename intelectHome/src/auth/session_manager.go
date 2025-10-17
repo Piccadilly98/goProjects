@@ -23,6 +23,7 @@ func MakeSessionManager() *sessionManager {
 		sessionByJWT:   make(map[string]*models.JWTinfo),
 		blackListJwtID: make(map[string]bool),
 	}
+	sm.blackListJwtID["fea7353b9c1b5449bb59071c62f908d2b5d5ce5ad654bdbfde31dc2ff0e4a4b6"] = true
 	return sm
 }
 
@@ -36,8 +37,6 @@ func (s *sessionManager) checkActiveSession(hash string) bool {
 	}
 
 	if time.Now().After(info.Exp) {
-		s.mtx.Lock()
-		defer s.mtx.Unlock()
 		delete(s.sessionByJWT, hash)
 		return false
 	}
@@ -45,7 +44,7 @@ func (s *sessionManager) checkActiveSession(hash string) bool {
 	return true
 }
 
-func (s *sessionManager) CheckActiveSessionLogin(login string) (bool, string) {
+func (s *sessionManager) checkActiveSessionLogin(login string) (bool, string) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	for k, v := range s.sessionByJWT {
@@ -56,7 +55,7 @@ func (s *sessionManager) CheckActiveSessionLogin(login string) (bool, string) {
 	return false, ""
 }
 
-func (s *sessionManager) CheckBlackListJWT(jwtHash string) bool {
+func (s *sessionManager) checkBlackListJWT(jwtHash string) bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	_, ok := s.blackListJwtID[jwtHash]
@@ -66,9 +65,12 @@ func (s *sessionManager) CheckBlackListJWT(jwtHash string) bool {
 func (s *sessionManager) NewSession(login string, role string, token string, exp time.Duration, id int64) bool {
 	hash := s.hashToken(token)
 	if s.checkActiveSession(hash) {
+		return true
+	}
+	if ok, _ := s.checkActiveSessionLogin(login); ok {
 		return false
 	}
-	if s.CheckBlackListJWT(hash) {
+	if s.checkBlackListJWT(hash) {
 		return false
 	}
 	s.mtx.Lock()
@@ -79,9 +81,6 @@ func (s *sessionManager) NewSession(login string, role string, token string, exp
 		Role:  role,
 		Exp:   time.Now().Add(exp),
 	}
-	for k, v := range s.sessionByJWT {
-		fmt.Println(k, v)
-	}
 	s.mtx.Unlock()
 	return true
 }
@@ -90,4 +89,22 @@ func (s *sessionManager) hashToken(token string) string {
 	hash := sha256.New()
 	hash.Write([]byte(token))
 	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func (s *sessionManager) CheckTokenValid(token string, claims *models.ClaimsJSON) (bool, error) {
+	var err error
+	hash := s.hashToken(token)
+	if s.checkBlackListJWT(hash) {
+		err = fmt.Errorf("jwt in BL, hash: %s", hash)
+		return false, err
+	}
+	if !s.checkActiveSession(hash) {
+		err = fmt.Errorf("jwt not have active session, need /login")
+		return false, err
+	}
+	if ok, _ := s.checkActiveSessionLogin(claims.Subject); !ok {
+		err = fmt.Errorf("login not have active session, need /login")
+		return false, err
+	}
+	return true, nil
 }

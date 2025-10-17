@@ -13,14 +13,14 @@ import (
 )
 
 type TokenWorker struct {
-	tokenID atomic.Int64
+	tokenIDCount atomic.Int64
 }
 
-func (t *TokenWorker) CreateToken(login, role string, exp time.Duration) (string, error, int64) {
-	t.tokenID.Add(1)
+func (t *TokenWorker) CreateToken(login, role string, exp time.Duration) (string, int64, error) {
+	t.tokenIDCount.Add(1)
 	claims := &models.ClaimsJSON{
 		Role:    role,
-		TokenID: t.tokenID.Load(),
+		TokenID: t.tokenIDCount.Load(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   login,
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -30,9 +30,9 @@ func (t *TokenWorker) CreateToken(login, role string, exp time.Duration) (string
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 	if err != nil {
-		return "", err, 0
+		return "", 0, err
 	}
-	return tokenStr, nil, claims.TokenID
+	return tokenStr, claims.TokenID, nil
 }
 
 func ValidateToken(tokenStr string, stor *storage.Storage) (bool, *models.ClaimsJSON) {

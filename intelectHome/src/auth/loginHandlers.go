@@ -37,7 +37,7 @@ func (l *loginHandlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("invalid login or password"))
 		return
 	}
-	token, err, id := l.tokenWorker.CreateToken(login, role, 24*time.Hour)
+	token, id, err := l.tokenWorker.CreateToken(login, role, 24*time.Hour)
 	if err != nil {
 		httpCode = http.StatusInternalServerError
 		errors = err.Error() + "Errors in generation jwt token"
@@ -47,6 +47,7 @@ func (l *loginHandlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ok = l.sm.NewSession(login, role, token, 24*time.Hour, id)
 	if !ok {
+		l.tokenWorker.tokenIDCount.Add(-1)
 		httpCode = http.StatusBadRequest
 		errors = "Repeat get jwt token!"
 		w.WriteHeader(httpCode)
