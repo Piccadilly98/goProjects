@@ -37,7 +37,7 @@ func MiddlewareAuth(stor *storage.Storage, sm *SessionManager) func(http.Handler
 			token, err := validateHeaderGetToken(r.Header)
 			if err != nil {
 				errors = err.Error()
-				httpCode = http.StatusBadRequest
+				httpCode = http.StatusUnauthorized
 				w.WriteHeader(httpCode)
 				w.Write([]byte(errors))
 				return

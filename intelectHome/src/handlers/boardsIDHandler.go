@@ -84,4 +84,9 @@ func (b *boarsIDHandl) BoardsIDHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	httpCode = http.StatusMethodNotAllowed
+	errors = "methods not allowed"
+	w.WriteHeader(httpCode)
+
 }

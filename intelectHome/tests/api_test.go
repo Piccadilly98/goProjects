@@ -63,7 +63,7 @@ const (
 	key         = "Authorization"
 	method      = "Bearer"
 	headerKey   = "format"
-	headerValue = "txt"
+	headerValue = "text"
 )
 
 func initTests() *ServerSettings {
@@ -276,14 +276,22 @@ func TestMiddleWare(t *testing.T) {
 	adminHeader := getAdminHeader(server)
 	espHeader := getEspHeader(server)
 	oldToken, _, _ := server.tw.CreateToken("admin_login", "ADMIN", 1*time.Microsecond)
+	oldTokenEsp, _, _ := server.tw.CreateToken("esp32_1_login", "ESP", 1*time.Microsecond)
+	notLoginEspToken, _, _ := server.tw.CreateToken("esp_32_1_login", "ESP", 24*time.Hour)
 	notLoginToken, _, _ := server.tw.CreateToken("admin_login", "ADMIN", 24*time.Hour)
 	invalidRoleToken, _, _ := server.tw.CreateToken("admin1_login", "GOD", 24*time.Hour)
 	oldHeader := method + " " + oldToken
+	oldEspHeader := method + " " + oldTokenEsp
+	notLoginHeaderEsp := method + " " + notLoginEspToken
 	notLoginHeader := method + " " + notLoginToken
 	invalidRoleHeader := method + " " + invalidRoleToken
+	invalidTokenHeader := method + " " + "sdasdqweqdas.random.testsinvalid"
 
 	testCases := []logsTestCases{
 		{
+
+			//				LOGS
+
 			name:         "validTestLogs1: admin",
 			method:       http.MethodGet,
 			role:         "ADMIN",
@@ -321,6 +329,56 @@ func TestMiddleWare(t *testing.T) {
 			headerValue:  headerValue,
 			expectedCode: http.StatusOK,
 		},
+
+		//				ADMIN VALID TOKEN, INVALID METHODS
+
+		{
+			name:         "ivalidTestLogs:admin|put",
+			method:       http.MethodPut,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/logs",
+			body:         "",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "ivalidTestLogs:admin|delete",
+			method:       http.MethodDelete,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/logs",
+			body:         "",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "ivalidTestLogs:admin|patch",
+			method:       http.MethodPatch,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/logs",
+			body:         "",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "ivalidTestLogs:admin|head",
+			method:       http.MethodHead,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/logs",
+			body:         "",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "ivalidTestLogs:admin|options",
+			method:       http.MethodOptions,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/logs",
+			body:         "",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+
+		//				ADMIN INVALID TOKEN
 		{
 			name:         "invalidTestLogs1:admin|oldjwt",
 			method:       http.MethodGet,
@@ -331,7 +389,7 @@ func TestMiddleWare(t *testing.T) {
 			expectedCode: http.StatusUnauthorized,
 		},
 		{
-			name:         "invalidTestLogs2:admin|oldjwt",
+			name:         "invalidTestLogs2:admin|oldjwt|logsID=1",
 			method:       http.MethodGet,
 			role:         "ADMIN",
 			header:       oldHeader,
@@ -349,7 +407,7 @@ func TestMiddleWare(t *testing.T) {
 			expectedCode: http.StatusUnauthorized,
 		},
 		{
-			name:         "invalidTestLogs3:admin|oldjwt_format",
+			name:         "invalidTestLogs4:admin|oldjwt_format",
 			method:       http.MethodGet,
 			role:         "ADMIN",
 			header:       oldHeader,
@@ -360,7 +418,7 @@ func TestMiddleWare(t *testing.T) {
 			expectedCode: http.StatusUnauthorized,
 		},
 		{
-			name:         "invalidTestLogs4:admin|not login jwt",
+			name:         "invalidTestLogs5:admin|not login jwt",
 			method:       http.MethodGet,
 			role:         "ADMIN",
 			header:       notLoginHeader,
@@ -369,7 +427,7 @@ func TestMiddleWare(t *testing.T) {
 			expectedCode: http.StatusUnauthorized,
 		},
 		{
-			name:         "invalidTestLogs5:admin|not login jwt|jwtid",
+			name:         "invalidTestLogs6:admin|not login jwt|jwtid",
 			method:       http.MethodGet,
 			role:         "ADMIN",
 			header:       notLoginHeader,
@@ -378,7 +436,7 @@ func TestMiddleWare(t *testing.T) {
 			expectedCode: http.StatusUnauthorized,
 		},
 		{
-			name:         "invalidTestLogs6:admin|not login jwt|logsid",
+			name:         "invalidTestLogs7:admin|not login jwt|logsid",
 			method:       http.MethodGet,
 			role:         "ADMIN",
 			header:       notLoginHeader,
@@ -387,7 +445,7 @@ func TestMiddleWare(t *testing.T) {
 			expectedCode: http.StatusUnauthorized,
 		},
 		{
-			name:         "invalidTestLogs7:admin|not login jwt|format",
+			name:         "invalidTestLogs8:admin|not login jwt|format",
 			method:       http.MethodGet,
 			role:         "ADMIN",
 			header:       notLoginHeader,
@@ -397,8 +455,11 @@ func TestMiddleWare(t *testing.T) {
 			headerValue:  headerValue,
 			expectedCode: http.StatusUnauthorized,
 		},
+
+		//			ESP VALID TOKEN
+
 		{
-			name:         "invalidTestLogs8:esp",
+			name:         "invalidTestLogs9:esp",
 			method:       http.MethodGet,
 			role:         "ESP",
 			header:       espHeader,
@@ -407,7 +468,7 @@ func TestMiddleWare(t *testing.T) {
 			expectedCode: http.StatusForbidden,
 		},
 		{
-			name:         "invalidTestLogs9:esp|jwtID",
+			name:         "invalidTestLogs10:esp|jwtID",
 			method:       http.MethodGet,
 			role:         "ESP",
 			header:       espHeader,
@@ -416,7 +477,7 @@ func TestMiddleWare(t *testing.T) {
 			expectedCode: http.StatusForbidden,
 		},
 		{
-			name:         "invalidTestLogs10:esp|logsID",
+			name:         "invalidTestLogs11:esp|logsID",
 			method:       http.MethodGet,
 			role:         "ESP",
 			header:       espHeader,
@@ -425,7 +486,7 @@ func TestMiddleWare(t *testing.T) {
 			expectedCode: http.StatusForbidden,
 		},
 		{
-			name:         "invalidTestLogs11:esp|format",
+			name:         "invalidTestLogs12:esp|format",
 			method:       http.MethodGet,
 			role:         "ESP",
 			header:       espHeader,
@@ -435,6 +496,69 @@ func TestMiddleWare(t *testing.T) {
 			headerValue:  headerValue,
 			expectedCode: http.StatusForbidden,
 		},
+
+		// 				OTHER INVALID TOKEN
+		{
+			name:         "invalidTestLogs13:randomToken",
+			method:       http.MethodGet,
+			role:         "?",
+			header:       invalidTokenHeader,
+			url:          "/logs",
+			body:         "",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "invalidTestLogs14:randomToken|format",
+			method:       http.MethodGet,
+			role:         "?",
+			header:       invalidTokenHeader,
+			url:          "/logs",
+			body:         "",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "invalidTestLogs:invalid role token",
+			method:       http.MethodGet,
+			role:         "GOD",
+			header:       invalidRoleHeader,
+			url:          "/logs",
+			body:         "",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "invalidTestLogs:invalid role token|format",
+			method:       http.MethodGet,
+			role:         "GOD",
+			header:       invalidRoleHeader,
+			url:          "/logs",
+			body:         "",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "invalidTestLogs15:noheader",
+			method:       http.MethodGet,
+			role:         "ESP",
+			url:          "/logs",
+			body:         "",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "invalidTestLogs:noheader|format",
+			method:       http.MethodGet,
+			role:         "ESP",
+			url:          "/logs",
+			body:         "",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		//				CONTROL
+
 		{
 			name:         "validTestControl1:admin",
 			method:       http.MethodPost,
@@ -453,6 +577,9 @@ func TestMiddleWare(t *testing.T) {
 			body:         `[{"id":"led1","status":"on","boardsID":"esp32_1"},{"id":"led2","status":"on","boardsID":"esp32_1"}]`,
 			expectedCode: http.StatusOK,
 		},
+
+		//					ADMIN VALID TOKEN, INVALID METHODS
+
 		{
 			name:         "ivalidTestControl1:admin|method",
 			method:       http.MethodGet,
@@ -462,6 +589,54 @@ func TestMiddleWare(t *testing.T) {
 			body:         `[{"id":"led1","status":"on","boardsID":"esp32_1"},{"id":"led2","status":"on","boardsID":"esp32_1"}]`,
 			expectedCode: http.StatusMethodNotAllowed,
 		},
+		{
+			name:         "ivalidTestControl:admin|put",
+			method:       http.MethodPut,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/control",
+			body:         "",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "ivalidTestControl:admin|delete",
+			method:       http.MethodDelete,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/control",
+			body:         "",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "ivalidTestControl:admin|patch",
+			method:       http.MethodPatch,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/control",
+			body:         "",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "ivalidTestControl:admin|head",
+			method:       http.MethodHead,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/control",
+			body:         "",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "ivalidTestControl:admin|options",
+			method:       http.MethodOptions,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/control",
+			body:         "",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+
+		//				ADMIN VALID TOKEN, INVALID BODY
+
 		{
 			name:         "ivalidTestControl2:admin|invalid id device",
 			method:       http.MethodPost,
@@ -517,7 +692,7 @@ func TestMiddleWare(t *testing.T) {
 			expectedCode: http.StatusBadRequest,
 		},
 		{
-			name:         "ivalidTestControl8:admin|empty body", //поправить что бы пустой json не приниался
+			name:         "ivalidTestControl8:admin|empty body",
 			method:       http.MethodPost,
 			role:         "ADMIN",
 			header:       adminHeader,
@@ -525,8 +700,11 @@ func TestMiddleWare(t *testing.T) {
 			body:         "",
 			expectedCode: http.StatusBadRequest,
 		},
+
+		//				ADMIN INVALID TOKEN
+
 		{
-			name:         "ivalidTestControl9:admin|oldtoken", //поправить на неплавильный токен возвращает 400
+			name:         "ivalidTestControl9:admin|oldtoken",
 			method:       http.MethodPost,
 			role:         "ADMIN",
 			header:       oldHeader,
@@ -544,67 +722,13 @@ func TestMiddleWare(t *testing.T) {
 			expectedCode: http.StatusUnauthorized,
 		},
 		{
-			name:         "ivalidTestControl10:admin|oldtoken|invalid body",
+			name:         "ivalidTestControl11:admin|oldtoken|invalid body",
 			method:       http.MethodPost,
 			role:         "ADMIN",
 			header:       oldHeader,
 			url:          "/control",
 			body:         `[{"id":"led1","status":"on","boardsID":"esp32_1"},{"id":"led3","status":"on","boardsID":"esp32_3"}]`,
 			expectedCode: http.StatusUnauthorized,
-		},
-		{
-			name:         "ivalidTestControl:admin|get",
-			method:       http.MethodGet,
-			role:         "ADMIN",
-			header:       adminHeader,
-			url:          "/control",
-			body:         "",
-			expectedCode: http.StatusMethodNotAllowed,
-		},
-		{
-			name:         "ivalidTestControl:admin|delete",
-			method:       http.MethodDelete,
-			role:         "ADMIN",
-			header:       adminHeader,
-			url:          "/control",
-			body:         "",
-			expectedCode: http.StatusMethodNotAllowed,
-		},
-		{
-			name:         "ivalidTestControl:admin|put",
-			method:       http.MethodPut,
-			role:         "ADMIN",
-			header:       adminHeader,
-			url:          "/control",
-			body:         "",
-			expectedCode: http.StatusMethodNotAllowed,
-		},
-		{
-			name:         "ivalidTestControl:admin|patch",
-			method:       http.MethodPatch,
-			role:         "ADMIN",
-			header:       adminHeader,
-			url:          "/control",
-			body:         "",
-			expectedCode: http.StatusMethodNotAllowed,
-		},
-		{
-			name:         "ivalidTestControl:admin|head",
-			method:       http.MethodHead,
-			role:         "ADMIN",
-			header:       adminHeader,
-			url:          "/control",
-			body:         "",
-			expectedCode: http.StatusMethodNotAllowed,
-		},
-		{
-			name:         "ivalidTestControl:admin|options",
-			method:       http.MethodOptions,
-			role:         "ADMIN",
-			header:       adminHeader,
-			url:          "/control",
-			body:         "",
-			expectedCode: http.StatusMethodNotAllowed,
 		},
 		{
 			name:         "ivalidTestControl:not login jwt",
@@ -615,6 +739,38 @@ func TestMiddleWare(t *testing.T) {
 			body:         "",
 			expectedCode: http.StatusUnauthorized,
 		},
+
+		// 					OTHER INVALID TOKENS
+
+		{
+			name:         "ivalidTestControl:random token",
+			method:       http.MethodPost,
+			role:         "ADMIN",
+			header:       notLoginHeader,
+			url:          "/control",
+			body:         "",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "ivalidTestControl:invalidRoleToken",
+			method:       http.MethodPost,
+			role:         "GOD",
+			header:       invalidRoleHeader,
+			url:          "/control",
+			body:         "",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "invalidTestControl:noheader",
+			method:       http.MethodGet,
+			role:         "?",
+			url:          "/control",
+			body:         "",
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		//				ESP VALID TOKEN, NO ACCESS
+
 		{
 			name:         "ivalidTestControl:esp",
 			method:       http.MethodPost,
@@ -625,38 +781,736 @@ func TestMiddleWare(t *testing.T) {
 			expectedCode: http.StatusForbidden,
 		},
 		{
-			name:         "ivalidTestControl:esp|body",
+			name:         "ivalidTestControl:esp|invalid id device",
 			method:       http.MethodPost,
-			role:         "GOD",
-			header:       invalidRoleHeader,
+			role:         "ESP",
+			header:       espHeader,
 			url:          "/control",
-			body:         `[{"id":"led1","status":"on","boardsID":"esp32_1"},{"id":"led2","status":"on","boardsID":"esp32_3"}]`,
-			expectedCode: http.StatusUnauthorized,
+			body:         `{"id":"led2","status":"on","boardsID":"esp32_1"}`,
+			expectedCode: http.StatusForbidden,
 		},
 		{
-			name:         "ivalidTestControl:invalid role",
+			name:         "ivalidTestControl:esp|body",
 			method:       http.MethodPost,
-			role:         "GOD",
-			header:       invalidRoleHeader,
+			role:         "ESP",
+			header:       espHeader,
+			url:          "/control",
+			body:         `{"id":"led1","status":"on","boardsID":"esp32_1"}`,
+			expectedCode: http.StatusForbidden,
+		},
+		{
+			name:         "ivalidTestControl:esp|body_array",
+			method:       http.MethodPost,
+			role:         "ESP",
+			header:       espHeader,
+			url:          "/control",
+			body:         `[{"id":"led1","status":"on","boardsID":"esp32_1"},{"id":"led2","status":"on","boardsID":"esp32_3"}]`,
+			expectedCode: http.StatusForbidden,
+		},
+
+		//			ESP INVALID TOKEN
+
+		{
+			name:         "ivalidTestControl:espOldToken",
+			method:       http.MethodPost,
+			role:         "ESP",
+			header:       oldEspHeader,
 			url:          "/control",
 			body:         "",
 			expectedCode: http.StatusUnauthorized,
 		},
+		{
+			name:         "ivalidTestControl:espOldToken|body",
+			method:       http.MethodPost,
+			role:         "ESP",
+			header:       oldEspHeader,
+			url:          "/control",
+			body:         `{"id":"led1","status":"on","boardsID":"esp32_1"}`,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "ivalidTestControl:espOldToken|body array",
+			method:       http.MethodPost,
+			role:         "ESP",
+			header:       oldEspHeader,
+			url:          "/control",
+			body:         `[{"id":"led1","status":"on","boardsID":"esp32_1"},{"id":"led2","status":"on","boardsID":"esp32_1"}]`,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "ivalidTestControl:espOldToken|invalid body",
+			method:       http.MethodPost,
+			role:         "ESP",
+			header:       oldEspHeader,
+			url:          "/control",
+			body:         `{"id":"led2","status":"on","boardsID":"esp32_1"}`,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "ivalidTestControl:espOldToken|invalid body array",
+			method:       http.MethodPost,
+			role:         "ESP",
+			header:       oldEspHeader,
+			url:          "/control",
+			body:         `[{"id":"led3","status":"on","boardsID":"esp32_1"},{"id":"led2","status":"on","boardsID":"esp32_1"}]`,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "ivalidTestControl:espNotLogin|",
+			method:       http.MethodPost,
+			role:         "ESP",
+			header:       notLoginHeaderEsp,
+			url:          "/control",
+			body:         "",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "ivalidTestControl:espNotLogin|body",
+			method:       http.MethodPost,
+			role:         "ESP",
+			header:       notLoginHeaderEsp,
+			url:          "/control",
+			body:         `{"id":"led1","status":"on","boardsID":"esp32_1"}`,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "ivalidTestControl:espNotLogin|body array",
+			method:       http.MethodPost,
+			role:         "ESP",
+			header:       notLoginHeaderEsp,
+			url:          "/control",
+			body:         `[{"id":"led1","status":"on","boardsID":"esp32_1"},{"id":"led2","status":"on","boardsID":"esp32_1"}]`,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "ivalidTestControl:espNotLogin|invalid body",
+			method:       http.MethodPost,
+			role:         "ESP",
+			header:       notLoginHeaderEsp,
+			url:          "/control",
+			body:         `{"id":"led2","status":"on","boardsID":"esp32_1"}`,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "ivalidTestControl:espNotLogin|invalid body array",
+			method:       http.MethodPost,
+			role:         "ESP",
+			header:       notLoginHeaderEsp,
+			url:          "/control",
+			body:         `[{"id":"led3","status":"on","boardsID":"esp32_1"},{"id":"led2","status":"on","boardsID":"esp32_1"}]`,
+			expectedCode: http.StatusUnauthorized,
+		},
 
-		// {
-		// 	name:         "invalidTestCase2",
-		// 	method:       http.MethodPost,
-		// 	role:         "ESP",
-		// 	expectedCode: http.StatusForbidden,
-		// },
-		// {
-		// 	name:         "validTestCase2",
-		// 	method:       http.MethodGet,
-		// 	role:         "ADMIN",
-		// 	header:       getEspHeader(server),
-		// 	url:          "/logs?logsID=1",
-		// 	expectedCode: http.StatusOK,
-		// },
+		//			BOARDS
+
+		{
+			name:         "validTestBoards1:admin",
+			method:       http.MethodGet,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards",
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "validTestBoards2:admin|format",
+			method:       http.MethodGet,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusOK,
+		},
+
+		//			VALID ADMIN TOKEN, INVALID MATHODS
+
+		{
+			name:         "inValidTestBoards:admin|post",
+			method:       http.MethodPost,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoards:admin|post|format",
+			method:       http.MethodPost,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoards:admin|put",
+			method:       http.MethodPut,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoards:admin|put|format",
+			method:       http.MethodPut,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoards:admin|delete",
+			method:       http.MethodDelete,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoards:admin|delete|format",
+			method:       http.MethodDelete,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoards:admin|patch",
+			method:       http.MethodPatch,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoards:admin|patch|format",
+			method:       http.MethodPatch,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoards:admin|head",
+			method:       http.MethodHead,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoards:admin|head|format",
+			method:       http.MethodHead,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+
+		//		INVALID ADMIN TOKEN
+
+		{
+			name:         "inValidTestBoards:admin|old",
+			method:       http.MethodGet,
+			role:         "ADMIN",
+			header:       oldHeader,
+			url:          "/boards",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoards:admin|old|format",
+			method:       http.MethodGet,
+			role:         "ADMIN",
+			header:       oldHeader,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoards:admin|not login",
+			method:       http.MethodGet,
+			role:         "ADMIN",
+			header:       notLoginHeader,
+			url:          "/boards",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoards:admin|not login|format",
+			method:       http.MethodGet,
+			role:         "ADMIN",
+			header:       notLoginHeader,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		//			OTHER INVALID TOKEN
+
+		{
+			name:         "inValidTestBoards:random|",
+			method:       http.MethodGet,
+			role:         "?",
+			header:       invalidTokenHeader,
+			url:          "/boards",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoards:random|format",
+			method:       http.MethodGet,
+			role:         "?",
+			header:       invalidTokenHeader,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoards:invalidRole",
+			method:       http.MethodGet,
+			role:         "GOD",
+			header:       invalidRoleHeader,
+			url:          "/boards",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoards:invalid role|format",
+			method:       http.MethodGet,
+			role:         "GOD",
+			header:       invalidRoleHeader,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoards:no header",
+			method:       http.MethodGet,
+			role:         "?",
+			header:       "",
+			url:          "/boards",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoards:no header|format",
+			method:       http.MethodGet,
+			role:         "?",
+			header:       "",
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		//		VALID ESP TOKEN, NO ACCESS
+
+		{
+			name:         "inValidTestBoards:esp",
+			method:       http.MethodGet,
+			role:         "ESP",
+			header:       espHeader,
+			url:          "/boards",
+			expectedCode: http.StatusForbidden,
+		},
+		{
+			name:         "inValidTestBoards:esp|format",
+			method:       http.MethodGet,
+			role:         "ESP",
+			header:       espHeader,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusForbidden,
+		},
+
+		//		INVALID ESP TOKEN
+
+		{
+			name:         "inValidTestBoards:esp|old",
+			method:       http.MethodGet,
+			role:         "ESP",
+			header:       oldEspHeader,
+			url:          "/boards",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoards:esp|old|format",
+			method:       http.MethodGet,
+			role:         "ESP",
+			header:       oldEspHeader,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoards:esp|not login",
+			method:       http.MethodGet,
+			role:         "ESP",
+			header:       notLoginHeaderEsp,
+			url:          "/boards",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoards:esp|not login|format",
+			method:       http.MethodGet,
+			role:         "ESP",
+			header:       notLoginHeaderEsp,
+			url:          "/boards",
+			headerKey:    headerKey,
+			headerValue:  headerValue,
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		//			BOARDS{ID}
+		//		   	   GET
+
+		{
+			name:         "inValidTestBoardsID:admin",
+			method:       http.MethodGet,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "inValidTestBoardsID:esp",
+			method:       http.MethodGet,
+			role:         "ESP32_1",
+			header:       espHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusOK,
+		},
+
+		//			 POST
+
+		{
+			name:         "inValidTestBoardsID:admin",
+			method:       http.MethodGet,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards/esp32_1",
+			body:         `{"boardId": "esp32_1","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "inValidTestBoardsID:esp",
+			method:       http.MethodGet,
+			role:         "ESP32_1",
+			header:       espHeader,
+			url:          "/boards/esp32_1",
+			body:         `{"boardId": "esp32_1","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			expectedCode: http.StatusOK,
+		},
+		//`{"boardId": "esp32_1","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`
+
+		//			IVALID METHODS
+		//			 ADMIN TOKEN
+
+		{
+			name:         "inValidTestBoardsID1:admin|put",
+			method:       http.MethodPut,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoardsID:admin|patch",
+			method:       http.MethodPatch,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoardsID:admin|delete",
+			method:       http.MethodDelete,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoardsID:admin|options",
+			method:       http.MethodOptions,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoardsID:admin|head",
+			method:       http.MethodHead,
+			role:         "ADMIN",
+			header:       adminHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+
+		//			ESP TOKEN
+
+		{
+			name:         "inValidTestBoardsID:esp|put",
+			method:       http.MethodPut,
+			role:         "ESP",
+			header:       espHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoardsID:esp|patch",
+			method:       http.MethodPatch,
+			role:         "ESP",
+			header:       espHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoardsID:esp|delete",
+			method:       http.MethodDelete,
+			role:         "ESP",
+			header:       espHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoardsID:esp|options",
+			method:       http.MethodOptions,
+			role:         "ESP",
+			header:       espHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "inValidTestBoardsID:esp|head",
+			method:       http.MethodHead,
+			role:         "ESP",
+			header:       espHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+
+		//			INVALID ADMIN TOKEN
+		//				     GET
+
+		{
+			name:         "inValidTestBoardsID:admin|old",
+			method:       http.MethodGet,
+			role:         "ADMIN",
+			header:       oldHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoardsID:admin|not login",
+			method:       http.MethodGet,
+			role:         "ADMIN",
+			header:       notLoginHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		//				POST: VALID BODY
+
+		{
+			name:         "inValidTestBoardsID:admin|post|old",
+			method:       http.MethodPost,
+			role:         "ADMIN",
+			header:       oldHeader,
+			url:          "/boards/esp32_1",
+			body:         `{"boardId": "esp32_1","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoardsID:admin|post|not login",
+			method:       http.MethodPost,
+			role:         "ADMIN",
+			header:       notLoginHeader,
+			url:          "/boards/esp32_1",
+			body:         `{"boardId": "esp32_1","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		//				POST: INVALID BODY
+
+		{
+			name:         "inValidTestBoardsID:admin|post|old|invalid body",
+			method:       http.MethodPost,
+			role:         "ADMIN",
+			header:       oldHeader,
+			url:          "/boards/esp32_1",
+			body:         `{"boardId": "esp32_2","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoardsID:admin|post|not login|invalid body",
+			method:       http.MethodPost,
+			role:         "ADMIN",
+			header:       notLoginHeader,
+			url:          "/boards/esp32_1",
+			body:         `{"boardId": "esp32_2","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		//				IVALID ESP TOKEN
+		//					GET
+
+		{
+			name:         "inValidTestBoardsID:esp|old",
+			method:       http.MethodGet,
+			role:         "ESP",
+			header:       oldEspHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoardsID:esp|not login",
+			method:       http.MethodGet,
+			role:         "ESP",
+			header:       notLoginHeaderEsp,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		//					POST: VALID BODY
+
+		{
+			name:         "inValidTestBoardsID:esp|old|",
+			method:       http.MethodGet,
+			role:         "ESP",
+			header:       oldEspHeader,
+			body:         `{"boardId": "esp32_1","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoardsID:esp|not login",
+			method:       http.MethodGet,
+			role:         "ESP",
+			header:       notLoginHeaderEsp,
+			body:         `{"boardId": "esp32_1","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		//			POST: INVALID BODY
+
+		{
+			name:         "inValidTestBoardsID:esp|old|invalid body",
+			method:       http.MethodGet,
+			role:         "ESP",
+			header:       oldEspHeader,
+			body:         `{"boardId": "esp32_2","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoardsID:esp|not login|invalid body",
+			method:       http.MethodGet,
+			role:         "ESP",
+			header:       notLoginHeaderEsp,
+			body:         `{"boardId": "esp32_2","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		//			OTHER INVALID TOKEN
+		//					GET
+
+		{
+			name:         "inValidTestBoardsID:ivalid role",
+			method:       http.MethodGet,
+			role:         "GOD",
+			header:       invalidRoleHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoardsID:random token",
+			method:       http.MethodGet,
+			role:         "?",
+			header:       invalidTokenHeader,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoardsID:no headers",
+			method:       http.MethodGet,
+			role:         "?",
+			header:       "",
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		//			POST:VALID BODY
+
+		{
+			name:         "inValidTestBoardsID:ivalid role",
+			method:       http.MethodPost,
+			role:         "GOD",
+			header:       invalidRoleHeader,
+			url:          "/boards/esp32_1",
+			body:         `{"boardId": "esp32_1","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoardsID:random token",
+			method:       http.MethodPost,
+			role:         "?",
+			header:       invalidTokenHeader,
+			body:         `{"boardId": "esp32_1","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoardsID:no headers",
+			method:       http.MethodPost,
+			role:         "?",
+			header:       "",
+			body:         `{"boardId": "esp32_1","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+
+		// POST:INVALID BODY
+
+		{
+			name:         "inValidTestBoardsID:ivalid role|invalid body",
+			method:       http.MethodPost,
+			role:         "GOD",
+			header:       invalidRoleHeader,
+			url:          "/boards/esp32_1",
+			body:         `{"boardId": "esp32_3","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoardsID:random token|invalid body",
+			method:       http.MethodPost,
+			role:         "?",
+			header:       invalidTokenHeader,
+			body:         `{"boardId": "esp32_3","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "inValidTestBoardsID:no headers|invalid body",
+			method:       http.MethodPost,
+			role:         "?",
+			header:       "",
+			body:         `{"boardId": "esp32_3","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
+			url:          "/boards/esp32_1",
+			expectedCode: http.StatusUnauthorized,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
