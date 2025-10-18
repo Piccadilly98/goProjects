@@ -46,6 +46,7 @@ func (h *HandlerControl) Control(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		h.storage.NewLog(r, jwtClaims, httpCode, errors, attentions...)
 	}()
+
 	var reqInfoSlice []RequestDeviceInfo
 	reqInfo := &RequestDeviceInfo{}
 	body, err := io.ReadAll(r.Body)
@@ -60,10 +61,10 @@ func (h *HandlerControl) Control(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err = json.Unmarshal(body, reqInfo)
 		if err != nil {
-			httpCode = http.StatusInternalServerError
-			errors = err.Error()
+			httpCode = http.StatusBadRequest
+			errors = err.Error() + " empty json input"
 			w.WriteHeader(httpCode)
-			w.Write([]byte(errors))
+			w.Write([]byte("empty JSON input"))
 			return
 		}
 		if !reqInfo.Validate() {

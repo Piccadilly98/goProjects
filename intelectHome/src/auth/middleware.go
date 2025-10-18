@@ -16,7 +16,7 @@ const (
 	ctxKey = "jwtClaims"
 )
 
-func MiddlewareAuth(stor *storage.Storage, sm *sessionManager) func(http.Handler) http.Handler {
+func MiddlewareAuth(stor *storage.Storage, sm *SessionManager) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			httpCode := http.StatusOK
@@ -44,7 +44,7 @@ func MiddlewareAuth(stor *storage.Storage, sm *sessionManager) func(http.Handler
 			}
 			ok, claims := ValidateToken(token, stor)
 			if !ok {
-				httpCode = http.StatusForbidden
+				httpCode = http.StatusUnauthorized
 				errors = "Invalid token!"
 				w.WriteHeader(httpCode)
 				w.Write([]byte(errors))
@@ -53,7 +53,7 @@ func MiddlewareAuth(stor *storage.Storage, sm *sessionManager) func(http.Handler
 			jwtClaims = claims
 			_, err = sm.CheckTokenValid(token, claims)
 			if err != nil {
-				httpCode = http.StatusBadRequest
+				httpCode = http.StatusUnauthorized
 				w.WriteHeader(httpCode)
 				errors = err.Error()
 				return

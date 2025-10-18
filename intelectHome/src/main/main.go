@@ -16,7 +16,7 @@ import (
 func main() {
 	godotenv.Load("/Users/flowerma/Desktop/goProjects/intelectHome/.env")
 	r := chi.NewRouter()
-	st := storage.MakeStorage("ADMIN", "ESP32_1")
+	st := storage.MakeStorage("ADMIN", "ESP32_1", "ESP32_2")
 	sm := auth.MakeSessionManager()
 	tw := &auth.TokenWorker{}
 	middleware := auth.MiddlewareAuth(st, sm)

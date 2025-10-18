@@ -10,13 +10,18 @@ import (
 	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
 )
 
+const (
+	headerKey   = "Content-Type"
+	headerValue = "application/json"
+)
+
 type loginHandlers struct {
 	storage     *storage.Storage
 	tokenWorker *TokenWorker
-	sm          *sessionManager
+	sm          *SessionManager
 }
 
-func MakeLoginHandlers(stor *storage.Storage, sm *sessionManager, tw *TokenWorker) *loginHandlers {
+func MakeLoginHandlers(stor *storage.Storage, sm *SessionManager, tw *TokenWorker) *loginHandlers {
 	return &loginHandlers{storage: stor, tokenWorker: tw, sm: sm}
 }
 
@@ -29,9 +34,18 @@ func (l *loginHandlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		l.storage.NewLog(r, jwtClaims, httpCode, errors, attentions...)
 	}()
 
+	value := r.Header.Get(headerKey)
+	if value != headerValue {
+		httpCode = http.StatusBadRequest
+		errors = "invalid format body data"
+		w.WriteHeader(httpCode)
+		w.Write([]byte(errors))
+		return
+	}
+
 	ok, login, role := ValidateLoginData(r.Body, l.storage)
 	if !ok {
-		httpCode = http.StatusBadRequest
+		httpCode = http.StatusUnauthorized
 		errors = "INVALID LOGIN ON PASSWORD"
 		w.WriteHeader(httpCode)
 		w.Write([]byte("invalid login or password"))
@@ -48,7 +62,7 @@ func (l *loginHandlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	ok = l.sm.NewSession(login, role, token, 24*time.Hour, id)
 	if !ok {
 		l.tokenWorker.tokenIDCount.Add(-1)
-		httpCode = http.StatusBadRequest
+		httpCode = http.StatusConflict
 		errors = "Repeat get jwt token!"
 		w.WriteHeader(httpCode)
 		w.Write([]byte(errors))

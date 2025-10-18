@@ -11,15 +11,15 @@ import (
 	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
 )
 
-type sessionManager struct {
+type SessionManager struct {
 	sessionIDcounter atomic.Int64
 	sessionByJWT     map[string]*models.JWTinfo
 	blackListJwtID   map[string]bool
 	mtx              sync.Mutex
 }
 
-func MakeSessionManager() *sessionManager {
-	sm := &sessionManager{
+func MakeSessionManager() *SessionManager {
+	sm := &SessionManager{
 		sessionByJWT:   make(map[string]*models.JWTinfo),
 		blackListJwtID: make(map[string]bool),
 	}
@@ -27,7 +27,7 @@ func MakeSessionManager() *sessionManager {
 	return sm
 }
 
-func (s *sessionManager) checkActiveSession(hash string) bool {
+func (s *SessionManager) checkActiveSession(hash string) bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -44,7 +44,7 @@ func (s *sessionManager) checkActiveSession(hash string) bool {
 	return true
 }
 
-func (s *sessionManager) checkActiveSessionLogin(login string) (bool, string) {
+func (s *SessionManager) checkActiveSessionLogin(login string) (bool, string) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	for k, v := range s.sessionByJWT {
@@ -55,14 +55,14 @@ func (s *sessionManager) checkActiveSessionLogin(login string) (bool, string) {
 	return false, ""
 }
 
-func (s *sessionManager) checkBlackListJWT(jwtHash string) bool {
+func (s *SessionManager) checkBlackListJWT(jwtHash string) bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	_, ok := s.blackListJwtID[jwtHash]
 	return ok
 }
 
-func (s *sessionManager) NewSession(login string, role string, token string, exp time.Duration, id int64) bool {
+func (s *SessionManager) NewSession(login string, role string, token string, exp time.Duration, id int64) bool {
 	hash := s.hashToken(token)
 	if s.checkActiveSession(hash) {
 		return true
@@ -85,13 +85,13 @@ func (s *sessionManager) NewSession(login string, role string, token string, exp
 	return true
 }
 
-func (s *sessionManager) hashToken(token string) string {
+func (s *SessionManager) hashToken(token string) string {
 	hash := sha256.New()
 	hash.Write([]byte(token))
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-func (s *sessionManager) CheckTokenValid(token string, claims *models.ClaimsJSON) (bool, error) {
+func (s *SessionManager) CheckTokenValid(token string, claims *models.ClaimsJSON) (bool, error) {
 	var err error
 	hash := s.hashToken(token)
 	if s.checkBlackListJWT(hash) {
