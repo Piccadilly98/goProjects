@@ -1,0 +1,32 @@
+package middleware
+
+import (
+	"net/http"
+
+	"github.com/Piccadilly98/goProjects/intelectHome/src/rate_limit"
+	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
+)
+
+func GlobalRateLimiterToMiddleware(rl *rate_limit.GlobalRateLimiter, stor *storage.Storage) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpCode := http.StatusOK
+			errors := ""
+			attentions := make([]string, 0)
+			deferNeed := true
+			defer func() {
+				if deferNeed {
+					stor.NewLog(r, nil, httpCode, errors, attentions...)
+				}
+			}()
+			if !rl.Allow() {
+				httpCode = http.StatusTooManyRequests
+				errors = "global rate limited to many requests, request rejected!"
+				w.WriteHeader(httpCode)
+				return
+			}
+			deferNeed = false
+			next.ServeHTTP(w, r)
+		})
+	}
+}

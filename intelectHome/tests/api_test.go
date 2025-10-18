@@ -1211,7 +1211,6 @@ func TestMiddleWare(t *testing.T) {
 			body:         `{"boardId": "esp32_1","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`,
 			expectedCode: http.StatusOK,
 		},
-		//`{"boardId": "esp32_1","tempCP": 0,"freeMemory": 0,"workTime": 0,"rssi": 0,"localIP": "","networkIP": "","voltage": 0,"quantityDevice": 0,"TimeUpload": "0001-01-01T00:00:00Z","TimeAdded": "2025-10-18T19:40:05.125446+04:00"}`
 
 		//			IVALID METHODS
 		//			 ADMIN TOKEN
