@@ -1,7 +1,7 @@
 Plan intelectHome:
-    -HTTP server in localhost +
-    -WiFi.h in esp32
-    -Connect my esp in my WiFi
-    -First Handler in my HTTPS server +
-    -First API esp->Server(control led in esp through http request and
-    get Response)+
+    -Add new rateLimitedRole
+    -Add https cert
+    -Add test rate limitesr
+    -Add metrics rate limiters
+    -Add new Endpoints /session for control sessions, add to BL, statustics
+    -Add admin panel for check all info api(status rateLimited, statistics...)
