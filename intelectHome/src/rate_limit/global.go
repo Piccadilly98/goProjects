@@ -67,9 +67,10 @@ func (rl *GlobalRateLimiter) Allow() bool {
 	if rl.stopped.Load() {
 		return true
 	}
-
+	// fmt.Printf("Before: %d\n", rl.tokenBucket.Load())
 	if tokens := rl.tokenBucket.Load(); tokens > 0 {
 		rl.tokenBucket.Add(-1)
+		// fmt.Printf("After: %d\n", rl.tokenBucket.Load())
 		return true
 	}
 	return false

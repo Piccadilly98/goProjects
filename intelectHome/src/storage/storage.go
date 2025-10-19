@@ -61,7 +61,7 @@ func (s *Storage) PrintLogs() {
 	s.mtx.Lock()
 	str := ""
 	keys := make([]int, 0)
-	for k, _ := range s.logs {
+	for k := range s.logs {
 		keys = append(keys, k)
 	}
 	sort.Ints(keys)

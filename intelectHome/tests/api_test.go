@@ -14,7 +14,9 @@ import (
 
 	"github.com/Piccadilly98/goProjects/intelectHome/src/auth"
 	"github.com/Piccadilly98/goProjects/intelectHome/src/handlers"
+	"github.com/Piccadilly98/goProjects/intelectHome/src/middleware"
 	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
+	"github.com/Piccadilly98/goProjects/intelectHome/src/rate_limit"
 	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
@@ -43,6 +45,50 @@ type logsTestCases struct {
 	body         string
 }
 
+type GlobalRateLimiterTestCase struct {
+	name                       string
+	endPoints                  string
+	header                     string
+	methods                    string
+	quantityRequestsInSeconds  int
+	codeInLastRequests         int
+	firstRejectedIndex         int
+	quantityRejected           int
+	expectedCode               int
+	expectedFirstRejectedIndex int
+	expectedRejectedQuantity   int
+}
+
+type headerForTests struct {
+	validAdminHeader    string
+	validEspHeader      string
+	oldAdminHeader      string
+	oldEspHeader        string
+	notLoginAdminHeader string
+	notLoginEspHeader   string
+	invalidRoleHeader   string
+	invalidTokenHeader  string
+}
+
+func makeHeadersForTests(server *ServerSettings) *headerForTests {
+	ht := &headerForTests{}
+
+	ht.validAdminHeader = getAdminHeader(server)
+	ht.validEspHeader = getEspHeader(server)
+	oldToken, _, _ := server.tw.CreateToken("admin_login", "ADMIN", 1*time.Microsecond)
+	oldTokenEsp, _, _ := server.tw.CreateToken("esp32_1_login", "ESP", 1*time.Microsecond)
+	notLoginEspToken, _, _ := server.tw.CreateToken("esp_32_1_login", "ESP", 24*time.Hour)
+	notLoginToken, _, _ := server.tw.CreateToken("admin_login", "ADMIN", 24*time.Hour)
+	invalidRoleToken, _, _ := server.tw.CreateToken("admin1_login", "GOD", 24*time.Hour)
+	ht.oldAdminHeader = method + " " + oldToken
+	ht.oldEspHeader = method + " " + oldTokenEsp
+	ht.notLoginEspHeader = method + " " + notLoginEspToken
+	ht.notLoginAdminHeader = method + " " + notLoginToken
+	ht.invalidRoleHeader = method + " " + invalidRoleToken
+	ht.invalidTokenHeader = method + " " + "sdasdqweqdas.random.testsinvalid"
+	return ht
+}
+
 type ServerSettings struct {
 	r         *chi.Mux
 	st        *storage.Storage
@@ -56,6 +102,8 @@ type ServerSettings struct {
 	devicesID any
 	logs      any
 	login     any
+	ipRl      *rate_limit.IpRateLimiter
+	globalRl  *rate_limit.GlobalRateLimiter
 }
 
 const (
@@ -66,7 +114,7 @@ const (
 	headerValue = "text"
 )
 
-func initTests() *ServerSettings {
+func initTests(globalRL bool, ipRl bool) *ServerSettings {
 	godotenv.Load("/Users/flowerma/Desktop/goProjects/intelectHome/.env")
 	server := &ServerSettings{
 		r:  chi.NewRouter(),
@@ -74,7 +122,7 @@ func initTests() *ServerSettings {
 		sm: auth.MakeSessionManager(),
 		tw: &auth.TokenWorker{},
 	}
-	middleware := auth.MiddlewareAuth(server.st, server.sm)
+	middlewareAuth := auth.MiddlewareAuth(server.st, server.sm)
 	control := handlers.MakeHandlerControl(server.st)
 	boardsID := handlers.MakeBoarsIDHandler(server.st)
 	boards := handlers.MakeBoarsHandler(server.st)
@@ -82,7 +130,7 @@ func initTests() *ServerSettings {
 	devicesID := handlers.MakeDevicesIDHandler(server.st)
 	logs := handlers.MakeLogsHandler(server.st)
 	login := auth.MakeLoginHandlers(server.st, server.sm, server.tw)
-	server.mid = middleware
+	server.mid = middlewareAuth
 	server.control = control
 	server.boards = boards
 	server.boardsID = boardsID
@@ -91,7 +139,15 @@ func initTests() *ServerSettings {
 	server.logs = logs
 	server.login = login
 
-	server.r.With(middleware).Route("/", func(r chi.Router) {
+	server.ipRl = rate_limit.MakeIpRateLimiter(2, 2)
+	server.globalRl = rate_limit.MakeGlobalRateLimiter(50, 50)
+	if globalRL {
+		server.r.Use(middleware.GlobalRateLimiterToMiddleware(server.globalRl, server.st))
+	}
+	if ipRl {
+		server.r.Use(middleware.IpRateLimiter(server.ipRl, server.st))
+	}
+	server.r.With(middlewareAuth).Route("/", func(r chi.Router) {
 		r.Post("/control", control.Control)
 		r.HandleFunc("/boards/{boardID}", boardsID.BoardsIDHandler)
 		r.Get("/boards", boards.BoardsHandler)
@@ -147,7 +203,7 @@ func getAdminHeader(server *ServerSettings) string {
 }
 
 func TestLoginHandler(t *testing.T) {
-	server := initTests()
+	server := initTests(false, false)
 	testTable := []testCases{
 		{
 			name:                "validTest1",
@@ -272,7 +328,7 @@ func TestLoginHandler(t *testing.T) {
 }
 
 func TestMiddleWare(t *testing.T) {
-	server := initTests()
+	server := initTests(false, false)
 	adminHeader := getAdminHeader(server)
 	espHeader := getEspHeader(server)
 	oldToken, _, _ := server.tw.CreateToken("admin_login", "ADMIN", 1*time.Microsecond)
@@ -1527,6 +1583,266 @@ func TestMiddleWare(t *testing.T) {
 			server.r.ServeHTTP(w, req)
 			if w.Code != tc.expectedCode {
 				t.Errorf("got %d, expect: %d\nbody: %s", w.Code, tc.expectedCode, w.Body.String())
+			}
+		})
+
+	}
+}
+
+func TestGlobalRateLimiter(t *testing.T) {
+	server := initTests(true, false)
+	ht := makeHeadersForTests(server)
+	time.Sleep(1 * time.Second)
+
+	testCases := []GlobalRateLimiterTestCase{
+		{
+			name:                       "validTestNoHeader",
+			endPoints:                  "/login",
+			methods:                    http.MethodPost,
+			quantityRequestsInSeconds:  40,
+			expectedCode:               http.StatusBadRequest,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "validTestBoundary",
+			endPoints:                  "/login",
+			methods:                    http.MethodPost,
+			quantityRequestsInSeconds:  50,
+			expectedCode:               http.StatusBadRequest,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "invalidTestExceeded",
+			endPoints:                  "/login",
+			methods:                    http.MethodPost,
+			quantityRequestsInSeconds:  51,
+			expectedCode:               http.StatusTooManyRequests,
+			expectedFirstRejectedIndex: 50,
+			expectedRejectedQuantity:   1,
+		},
+		{
+			name:                       "invalidTestOverExceeded",
+			endPoints:                  "/login",
+			methods:                    http.MethodPost,
+			quantityRequestsInSeconds:  100,
+			expectedCode:               http.StatusTooManyRequests,
+			expectedFirstRejectedIndex: 50,
+			expectedRejectedQuantity:   50,
+		},
+		{
+			name:                       "invalidTestSuperOverExceeded",
+			endPoints:                  "/login",
+			methods:                    http.MethodPost,
+			quantityRequestsInSeconds:  1000,
+			expectedCode:               http.StatusTooManyRequests,
+			expectedFirstRejectedIndex: 50,
+			expectedRejectedQuantity:   950,
+		},
+		{
+			name:                       "validTestBoundaryBoardsWithHeader",
+			endPoints:                  "/boards",
+			methods:                    http.MethodGet,
+			header:                     ht.validAdminHeader,
+			quantityRequestsInSeconds:  50,
+			expectedCode:               http.StatusOK,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "validTestBoundaryBoards",
+			endPoints:                  "/boards",
+			methods:                    http.MethodPost,
+			quantityRequestsInSeconds:  50,
+			expectedCode:               http.StatusUnauthorized,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "invalidTestExceededBoards",
+			endPoints:                  "/boards",
+			methods:                    http.MethodPost,
+			quantityRequestsInSeconds:  51,
+			expectedCode:               http.StatusTooManyRequests,
+			expectedFirstRejectedIndex: 50,
+			expectedRejectedQuantity:   1,
+		},
+		{
+			name:                       "validTestBoundaryDevicesWithHeaders",
+			endPoints:                  "/devices",
+			methods:                    http.MethodGet,
+			header:                     ht.validAdminHeader,
+			quantityRequestsInSeconds:  50,
+			expectedCode:               http.StatusOK,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "validTestBoundaryDevices",
+			endPoints:                  "/devices",
+			methods:                    http.MethodGet,
+			quantityRequestsInSeconds:  50,
+			expectedCode:               http.StatusUnauthorized,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "invalidTestExceededDevices",
+			endPoints:                  "/devices",
+			methods:                    http.MethodGet,
+			quantityRequestsInSeconds:  51,
+			expectedCode:               http.StatusTooManyRequests,
+			expectedFirstRejectedIndex: 50,
+			expectedRejectedQuantity:   1,
+		},
+		{
+			name:                       "validTestBoundaryLogsWithHeaders",
+			endPoints:                  "/logs",
+			methods:                    http.MethodGet,
+			quantityRequestsInSeconds:  50,
+			header:                     ht.validAdminHeader,
+			expectedCode:               http.StatusOK,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "validTestBoundaryLogs",
+			endPoints:                  "/logs",
+			methods:                    http.MethodGet,
+			quantityRequestsInSeconds:  50,
+			expectedCode:               http.StatusUnauthorized,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "invalidTestExceededLogs",
+			endPoints:                  "/logs",
+			methods:                    http.MethodGet,
+			quantityRequestsInSeconds:  51,
+			expectedCode:               http.StatusTooManyRequests,
+			expectedFirstRejectedIndex: 50,
+			expectedRejectedQuantity:   1,
+		},
+		{
+			name:                       "validTestBoundaryControl",
+			endPoints:                  "/control",
+			methods:                    http.MethodPost,
+			quantityRequestsInSeconds:  50,
+			expectedCode:               http.StatusUnauthorized,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "invalidTestExceededControl",
+			endPoints:                  "/control",
+			methods:                    http.MethodPost,
+			quantityRequestsInSeconds:  51,
+			expectedCode:               http.StatusTooManyRequests,
+			expectedFirstRejectedIndex: 50,
+			expectedRejectedQuantity:   1,
+		},
+		{
+			name:                       "validTestBoundaryDevicesIdWithHeaders",
+			endPoints:                  "/devices/led1",
+			methods:                    http.MethodGet,
+			header:                     ht.validAdminHeader,
+			quantityRequestsInSeconds:  50,
+			expectedCode:               http.StatusOK,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "validTestBoundaryDevicesId",
+			endPoints:                  "/devices/led1",
+			methods:                    http.MethodGet,
+			quantityRequestsInSeconds:  50,
+			expectedCode:               http.StatusUnauthorized,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "invalidTestExceededDevicesId",
+			endPoints:                  "/devices/led1",
+			methods:                    http.MethodGet,
+			quantityRequestsInSeconds:  51,
+			expectedCode:               http.StatusTooManyRequests,
+			expectedFirstRejectedIndex: 50,
+			expectedRejectedQuantity:   1,
+		},
+		{
+			name:                       "validTestBoundaryBoardsIDWithHeader",
+			endPoints:                  "/boards/esp32_1",
+			methods:                    http.MethodGet,
+			header:                     ht.validAdminHeader,
+			quantityRequestsInSeconds:  50,
+			expectedCode:               http.StatusOK,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "validTestBoundaryBoardsID",
+			endPoints:                  "/boards/esp32_1",
+			methods:                    http.MethodGet,
+			quantityRequestsInSeconds:  50,
+			expectedCode:               http.StatusUnauthorized,
+			expectedFirstRejectedIndex: -1,
+			expectedRejectedQuantity:   0,
+		},
+		{
+			name:                       "invalidTestExceededBoardsID",
+			endPoints:                  "/boards/esp32_1",
+			methods:                    http.MethodGet,
+			quantityRequestsInSeconds:  51,
+			expectedCode:               http.StatusTooManyRequests,
+			expectedFirstRejectedIndex: 50,
+			expectedRejectedQuantity:   1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.firstRejectedIndex == 0 {
+				tc.firstRejectedIndex = -1
+			}
+			req := httptest.NewRequest(tc.methods, tc.endPoints, nil)
+			req.Header.Set(key, tc.header)
+
+			timeStart := time.Now().UnixMicro()
+
+			for i := 0; i < tc.quantityRequestsInSeconds; i++ {
+				// t.Error(tc.firstRejectedIndex)
+				w := httptest.NewRecorder()
+				server.r.ServeHTTP(w, req)
+				code := w.Code
+				//  t.Error(code)
+				if code == http.StatusTooManyRequests {
+					if tc.firstRejectedIndex == -1 {
+						tc.firstRejectedIndex = i
+					}
+					tc.quantityRejected++
+				}
+				if i+1 == tc.quantityRequestsInSeconds {
+					tc.codeInLastRequests = code
+				}
+			}
+
+			if tc.expectedCode != tc.codeInLastRequests {
+				t.Errorf("got codeInLstRequest: %d, expect: %d\n", tc.codeInLastRequests, tc.expectedCode)
+			}
+			if tc.firstRejectedIndex != tc.expectedFirstRejectedIndex {
+				t.Errorf("got fistRejected index: %d, expect: %d\n", tc.firstRejectedIndex, tc.expectedFirstRejectedIndex)
+			}
+			if tc.expectedRejectedQuantity != tc.quantityRejected {
+				t.Errorf("got Rejected quantity: %d, expect: %d\n", tc.quantityRejected, tc.expectedRejectedQuantity)
+			}
+
+			timeAfter := time.Now().UnixMicro() - timeStart
+
+			remainder := 1*time.Second.Microseconds() - timeAfter
+
+			if remainder > 0 {
+				time.Sleep(time.Duration(remainder) * time.Microsecond)
 			}
 		})
 

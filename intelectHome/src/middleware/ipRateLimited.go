@@ -34,6 +34,7 @@ func IpRateLimiter(ipRate *rate_limit.IpRateLimiter, stor *storage.Storage) func
 				w.Write([]byte(errors))
 				return
 			}
+			deferNeed = false
 			next.ServeHTTP(w, r)
 		})
 	}
