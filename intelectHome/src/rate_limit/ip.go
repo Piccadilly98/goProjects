@@ -13,7 +13,7 @@ cleaning ip map once 5 minutes
 */
 
 var (
-	fiveMinutesInSecond = int64(5 * time.Minute.Seconds())
+	fiveMinutesInMicro = int64(5 * time.Minute / time.Microsecond)
 )
 
 type IpRateLimiter struct {
@@ -25,6 +25,7 @@ type IpRateLimiter struct {
 	startQuantityTokens  int64
 	maxToken             int64
 	mtx                  sync.Mutex
+	isStopedChan         chan bool
 }
 
 type ipTokensBucket struct {
@@ -47,6 +48,7 @@ func MakeIpRateLimiter(maxRequestIpInSecond int64, startTokensQuantity int64) *I
 		maxRequestIpInSecond: maxRequestIpInSecond,
 		startQuantityTokens:  startTokensQuantity,
 		maxToken:             maxRequestIpInSecond,
+		isStopedChan:         make(chan bool),
 	}
 	go ipRl.startCleningStorage()
 	return ipRl
@@ -65,10 +67,13 @@ func (iRl *IpRateLimiter) Allow(ip string) bool {
 	}
 	_, ok := iRl.storage[ip]
 	if !ok {
-		iRl.createNewIp(ip)
+		iRl.storage[ip] = iRl.createNewIp(ip)
 	}
 	v := iRl.storage[ip]
 	times := time.Now().UnixMicro() - v.lastAction
+	if times < 0 {
+		times = 0
+	}
 	tokensToLoad := int64(float64(times) * float64(iRl.maxRequestIpInSecond) / 1000000.0)
 	if v.tokens <= iRl.maxToken {
 		if tokensToLoad+v.tokens > iRl.maxToken {
@@ -111,13 +116,13 @@ func (iRl *IpRateLimiter) LimitRequestsForEveryone(maxRequestIpInSecond int64) b
 	return true
 }
 
-func (iRl *IpRateLimiter) createNewIp(ip string) {
+func (iRl *IpRateLimiter) createNewIp(ip string) *ipTokensBucket {
 	v := &ipTokensBucket{}
 	v.maxToken = iRl.maxRequestIpInSecond
 	v.tokens = iRl.startQuantityTokens
 	v.maxRequestInMinute = iRl.maxRequestIpInSecond
 	iRl.countIpAddres++
-	iRl.storage[ip] = v
+	return v
 }
 
 func (iRl *IpRateLimiter) BlockedIp(ip string) bool {
@@ -133,20 +138,27 @@ func (iRl *IpRateLimiter) BlockedIp(ip string) bool {
 
 func (iRl *IpRateLimiter) startCleningStorage() {
 	ticker := time.NewTicker(2 * time.Minute)
-
-	for {
-		select {
-		case <-ticker.C:
-			iRl.mtx.Lock()
-			for k, v := range iRl.storage {
-				if time.Now().Unix()-v.lastAction > fiveMinutesInSecond {
-					fmt.Println(time.Now().Unix()-v.lastAction > fiveMinutesInSecond)
-					delete(iRl.storage, k)
-				}
-			}
-			iRl.mtx.Unlock()
-		default:
-			continue
+	defer ticker.Stop()
+	select {
+	case <-iRl.isStopedChan:
+		for k := range iRl.storage {
+			delete(iRl.storage, k)
 		}
+		return
+	case <-ticker.C:
+		iRl.mtx.Lock()
+		for k, v := range iRl.storage {
+			if time.Now().UnixMicro()-v.lastAction > fiveMinutesInMicro {
+				delete(iRl.storage, k)
+			}
+		}
+		iRl.mtx.Unlock()
+
 	}
+}
+
+func (iRl *IpRateLimiter) Reset() {
+	iRl.mtx.Lock()
+	iRl.isStopedChan <- true
+	iRl.mtx.Unlock()
 }

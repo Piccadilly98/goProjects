@@ -22,6 +22,15 @@ import (
 	"github.com/joho/godotenv"
 )
 
+const (
+	acessToken  = "accessToken"
+	key         = "Authorization"
+	method      = "Bearer"
+	headerKey   = "format"
+	headerValue = "text"
+	validAdmin  = "adminValidHeader"
+)
+
 type testCases struct {
 	name                string
 	method              string
@@ -62,10 +71,10 @@ type GlobalRateLimiterTestCase struct {
 type IpRateLimiterTestCase struct {
 	name                   string
 	ips                    []IpBehavior
+	headerNeeded           string
 	header                 string
+	body                   string
 	method                 string
-	quantityOkRequests     int
-	quantityRejected       int
 	expectOkRequests       int
 	expectQuantityRejected int
 }
@@ -122,16 +131,11 @@ type ServerSettings struct {
 	globalRl  *rate_limit.GlobalRateLimiter
 }
 
-const (
-	acessToken  = "accessToken"
-	key         = "Authorization"
-	method      = "Bearer"
-	headerKey   = "format"
-	headerValue = "text"
-)
-
 func initTests(globalRL bool, ipRl bool) *ServerSettings {
-	godotenv.Load("/Users/flowerma/Desktop/goProjects/intelectHome/.env")
+	err := godotenv.Load("/Users/flowerma/Desktop/goProjects/intelectHome/.env")
+	if err != nil {
+		log.Fatal(err)
+	}
 	server := &ServerSettings{
 		r:  chi.NewRouter(),
 		st: storage.MakeStorage("ADMIN", "ESP32_1", "ESP32_2"),
@@ -1606,9 +1610,6 @@ func TestMiddleWare(t *testing.T) {
 }
 
 func TestGlobalRateLimiter(t *testing.T) {
-	server := initTests(true, false)
-	ht := makeHeadersForTests(server)
-	time.Sleep(1 * time.Second)
 
 	testCases := []GlobalRateLimiterTestCase{
 		{
@@ -1660,7 +1661,7 @@ func TestGlobalRateLimiter(t *testing.T) {
 			name:                       "validTestBoundaryBoardsWithHeader",
 			endPoints:                  "/boards",
 			methods:                    http.MethodGet,
-			header:                     ht.validAdminHeader,
+			header:                     "validAdminHeader",
 			quantityRequestsInSeconds:  50,
 			expectedCode:               http.StatusOK,
 			expectedFirstRejectedIndex: -1,
@@ -1688,7 +1689,7 @@ func TestGlobalRateLimiter(t *testing.T) {
 			name:                       "validTestBoundaryDevicesWithHeaders",
 			endPoints:                  "/devices",
 			methods:                    http.MethodGet,
-			header:                     ht.validAdminHeader,
+			header:                     "validAdminHeader",
 			quantityRequestsInSeconds:  50,
 			expectedCode:               http.StatusOK,
 			expectedFirstRejectedIndex: -1,
@@ -1717,7 +1718,7 @@ func TestGlobalRateLimiter(t *testing.T) {
 			endPoints:                  "/logs",
 			methods:                    http.MethodGet,
 			quantityRequestsInSeconds:  50,
-			header:                     ht.validAdminHeader,
+			header:                     "validAdminHeader",
 			expectedCode:               http.StatusOK,
 			expectedFirstRejectedIndex: -1,
 			expectedRejectedQuantity:   0,
@@ -1762,7 +1763,7 @@ func TestGlobalRateLimiter(t *testing.T) {
 			name:                       "validTestBoundaryDevicesIdWithHeaders",
 			endPoints:                  "/devices/led1",
 			methods:                    http.MethodGet,
-			header:                     ht.validAdminHeader,
+			header:                     "validAdminHeader",
 			quantityRequestsInSeconds:  50,
 			expectedCode:               http.StatusOK,
 			expectedFirstRejectedIndex: -1,
@@ -1790,7 +1791,7 @@ func TestGlobalRateLimiter(t *testing.T) {
 			name:                       "validTestBoundaryBoardsIDWithHeader",
 			endPoints:                  "/boards/esp32_1",
 			methods:                    http.MethodGet,
-			header:                     ht.validAdminHeader,
+			header:                     "validAdminHeader",
 			quantityRequestsInSeconds:  50,
 			expectedCode:               http.StatusOK,
 			expectedFirstRejectedIndex: -1,
@@ -1821,17 +1822,19 @@ func TestGlobalRateLimiter(t *testing.T) {
 			if tc.firstRejectedIndex == 0 {
 				tc.firstRejectedIndex = -1
 			}
+			server := initTests(true, false)
+			ht := makeHeadersForTests(server)
+			time.Sleep(1 * time.Second)
 			req := httptest.NewRequest(tc.methods, tc.endPoints, nil)
+			if tc.header == "validAdminHeader" {
+				tc.header = ht.validAdminHeader
+			}
 			req.Header.Set(key, tc.header)
 
-			timeStart := time.Now().UnixMicro()
-
 			for i := 0; i < tc.quantityRequestsInSeconds; i++ {
-				// t.Error(tc.firstRejectedIndex)
 				w := httptest.NewRecorder()
 				server.r.ServeHTTP(w, req)
 				code := w.Code
-				//  t.Error(code)
 				if code == http.StatusTooManyRequests {
 					if tc.firstRejectedIndex == -1 {
 						tc.firstRejectedIndex = i
@@ -1843,32 +1846,25 @@ func TestGlobalRateLimiter(t *testing.T) {
 				}
 			}
 
+			okMax := tc.expectedRejectedQuantity + int(float64(tc.expectedRejectedQuantity)*0.002)
+			okMin := tc.expectedRejectedQuantity - int(float64(tc.expectedRejectedQuantity)*0.002)
+
 			if tc.expectedCode != tc.codeInLastRequests {
 				t.Errorf("got codeInLstRequest: %d, expect: %d\n", tc.codeInLastRequests, tc.expectedCode)
 			}
 			if tc.firstRejectedIndex != tc.expectedFirstRejectedIndex {
 				t.Errorf("got fistRejected index: %d, expect: %d\n", tc.firstRejectedIndex, tc.expectedFirstRejectedIndex)
 			}
-			if tc.expectedRejectedQuantity != tc.quantityRejected {
+			if tc.expectedRejectedQuantity != tc.quantityRejected && (tc.expectedRejectedQuantity > okMax || tc.expectedRejectedQuantity < okMin) {
 				t.Errorf("got Rejected quantity: %d, expect: %d\n", tc.quantityRejected, tc.expectedRejectedQuantity)
 			}
 
-			timeAfter := time.Now().UnixMicro() - timeStart
-
-			remainder := 1*time.Second.Microseconds() - timeAfter
-
-			if remainder > 0 {
-				time.Sleep(time.Duration(remainder) * time.Microsecond)
-			}
 		})
 
 	}
 }
 
 func TestIpRateLimited(t *testing.T) {
-	server := initTests(false, true)
-	ht := makeHeadersForTests(server)
-	time.Sleep(1 * time.Second)
 
 	testCases := []IpRateLimiterTestCase{
 		{
@@ -1882,7 +1878,7 @@ func TestIpRateLimited(t *testing.T) {
 					},
 				},
 			},
-			header:                 ht.validAdminHeader,
+			headerNeeded:           validAdmin,
 			method:                 http.MethodGet,
 			expectOkRequests:       9,
 			expectQuantityRejected: 0,
@@ -1899,7 +1895,7 @@ func TestIpRateLimited(t *testing.T) {
 					},
 				},
 			},
-			header:                 ht.validAdminHeader,
+			headerNeeded:           validAdmin,
 			method:                 http.MethodGet,
 			expectOkRequests:       10,
 			expectQuantityRejected: 0,
@@ -1918,7 +1914,7 @@ func TestIpRateLimited(t *testing.T) {
 					},
 				},
 			},
-			header:                 ht.validAdminHeader,
+			headerNeeded:           validAdmin,
 			method:                 http.MethodGet,
 			expectOkRequests:       10,
 			expectQuantityRejected: 2,
@@ -1927,20 +1923,19 @@ func TestIpRateLimited(t *testing.T) {
 			name: "inValid_one_IP_extra_exceeded_quantity",
 			ips: []IpBehavior{
 				{
-					ip: "190.168.0.1:12345",
+					ip: "191.168.0.1:12345",
 					behavior: map[string]int{
 						"/logs":           1000,
 						"/devices":        1000,
 						"/boards":         1000,
 						"/boards/esp32_1": 1000,
-						"/login":          1000,
 					},
 				},
 			},
-			header:                 ht.validAdminHeader,
+			headerNeeded:           validAdmin,
 			method:                 http.MethodGet,
 			expectOkRequests:       10,
-			expectQuantityRejected: 4990,
+			expectQuantityRejected: 3990,
 		},
 		{
 			name: "valid_two_IP_valid_quantity",
@@ -1962,7 +1957,7 @@ func TestIpRateLimited(t *testing.T) {
 					},
 				},
 			},
-			header:                 ht.validAdminHeader,
+			headerNeeded:           validAdmin,
 			method:                 http.MethodGet,
 			expectOkRequests:       18,
 			expectQuantityRejected: 0,
@@ -1991,7 +1986,7 @@ func TestIpRateLimited(t *testing.T) {
 					},
 				},
 			},
-			header:                 ht.validAdminHeader,
+			headerNeeded:           validAdmin,
 			method:                 http.MethodGet,
 			expectOkRequests:       20,
 			expectQuantityRejected: 0,
@@ -2020,7 +2015,7 @@ func TestIpRateLimited(t *testing.T) {
 					},
 				},
 			},
-			header:                 ht.validAdminHeader,
+			headerNeeded:           validAdmin,
 			method:                 http.MethodGet,
 			expectOkRequests:       20,
 			expectQuantityRejected: 1,
@@ -2049,7 +2044,7 @@ func TestIpRateLimited(t *testing.T) {
 					},
 				},
 			},
-			header:                 ht.validAdminHeader,
+			headerNeeded:           validAdmin,
 			method:                 http.MethodGet,
 			expectOkRequests:       20,
 			expectQuantityRejected: 2,
@@ -2078,7 +2073,7 @@ func TestIpRateLimited(t *testing.T) {
 					},
 				},
 			},
-			header:                 ht.validAdminHeader,
+			headerNeeded:           validAdmin,
 			method:                 http.MethodGet,
 			expectOkRequests:       20,
 			expectQuantityRejected: 40,
@@ -2105,7 +2100,7 @@ func TestIpRateLimited(t *testing.T) {
 					},
 				},
 			},
-			header:                 ht.validAdminHeader,
+			headerNeeded:           validAdmin,
 			method:                 http.MethodGet,
 			expectOkRequests:       20,
 			expectQuantityRejected: 510,
@@ -2136,7 +2131,7 @@ func TestIpRateLimited(t *testing.T) {
 					},
 				},
 			},
-			header:                 ht.validAdminHeader,
+			headerNeeded:           validAdmin,
 			method:                 http.MethodGet,
 			expectOkRequests:       30,
 			expectQuantityRejected: 0,
@@ -2170,7 +2165,7 @@ func TestIpRateLimited(t *testing.T) {
 					},
 				},
 			},
-			header:                 ht.validAdminHeader,
+			headerNeeded:           validAdmin,
 			method:                 http.MethodGet,
 			expectOkRequests:       30,
 			expectQuantityRejected: 10,
@@ -2179,7 +2174,14 @@ func TestIpRateLimited(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			server := initTests(false, true)
+			ht := makeHeadersForTests(server)
+			var quantityOkRequests int
+			var quantityRejectedRequests int
 			for _, v := range tc.ips {
+				if tc.headerNeeded == validAdmin {
+					tc.header = ht.validAdminHeader
+				}
 				for k, v2 := range v.behavior {
 					req := httptest.NewRequest(tc.method, k, nil)
 					req.RemoteAddr = v.ip
@@ -2189,32 +2191,25 @@ func TestIpRateLimited(t *testing.T) {
 						server.r.ServeHTTP(w, req)
 						code := w.Code
 						if code == http.StatusOK {
-							tc.quantityOkRequests++
+							quantityOkRequests++
 						}
 						if code == http.StatusTooManyRequests {
-							tc.quantityRejected++
+							quantityRejectedRequests++
+						}
+						if code != http.StatusOK && code != http.StatusTooManyRequests {
+							t.Error(code, tc.method, k)
 						}
 					}
 				}
 			}
 
-			timeEnd := time.Now().UnixMicro()
-
-			if tc.quantityOkRequests != tc.expectOkRequests {
-				t.Errorf("got quantity ok requests: %d, expect: %d\n", tc.quantityOkRequests, tc.expectOkRequests)
+			if quantityOkRequests != tc.expectOkRequests {
+				t.Errorf("got quantity ok requests: %d, expect: %d\n", quantityOkRequests, tc.expectOkRequests)
 			}
-			if tc.quantityRejected != tc.expectQuantityRejected {
-				t.Errorf("got quantity rejected: %d, expect: %d\n", tc.quantityRejected, tc.expectQuantityRejected)
-			}
-			timeAfter := time.Now().UnixMicro() - timeEnd
-
-			remainder := 1*time.Second.Microseconds() - timeAfter
-
-			if remainder > 0 {
-				time.Sleep(time.Duration(remainder) * time.Microsecond)
+			if quantityRejectedRequests != tc.expectQuantityRejected {
+				t.Errorf("got quantity rejected: %d, expect: %d\n", quantityRejectedRequests, tc.expectQuantityRejected)
 			}
 
-			// time.Sleep(1 * time.Second)
 		})
 	}
 

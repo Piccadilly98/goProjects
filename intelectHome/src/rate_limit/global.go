@@ -2,7 +2,6 @@ package rate_limit
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"sync/atomic"
 	"time"
@@ -29,7 +28,6 @@ func MakeGlobalRateLimiter(maxRequestInSecond int, StartQuantityTokens int64) *G
 	rl.tokenBucket.Store(StartQuantityTokens)
 	rl.ctx, rl.ctxCancel = context.WithCancel(context.Background())
 	rl.duration = time.Duration(1000/maxRequestInSecond) * time.Millisecond
-	fmt.Println(rl.duration)
 	rl.maxTokens = int64(maxRequestInSecond)
 	rl.stopped.Store(false)
 	rl.attacked.Store(false)
@@ -70,7 +68,6 @@ func (rl *GlobalRateLimiter) Allow() bool {
 	// fmt.Printf("Before: %d\n", rl.tokenBucket.Load())
 	if tokens := rl.tokenBucket.Load(); tokens > 0 {
 		rl.tokenBucket.Add(-1)
-		// fmt.Printf("After: %d\n", rl.tokenBucket.Load())
 		return true
 	}
 	return false
