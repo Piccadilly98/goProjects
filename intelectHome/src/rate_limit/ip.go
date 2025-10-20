@@ -3,7 +3,6 @@ package rate_limit
 import (
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -22,18 +21,18 @@ type IpRateLimiter struct {
 	countIpAddres        int64
 	isStoped             bool
 	isAttacked           bool
-	mtx                  sync.RWMutex
 	maxRequestIpInSecond int64
 	startQuantityTokens  int64
 	maxToken             int64
+	mtx                  sync.Mutex
 }
 
 type ipTokensBucket struct {
-	tokens             atomic.Int64
-	maxToken           atomic.Int64
-	lastAction         atomic.Int64
-	isBlocked          atomic.Bool
-	maxRequestInMinute atomic.Int64
+	tokens             int64
+	maxToken           int64
+	lastAction         int64
+	isBlocked          bool
+	maxRequestInMinute int64
 }
 
 func MakeIpRateLimiter(maxRequestIpInSecond int64, startTokensQuantity int64) *IpRateLimiter {
@@ -57,9 +56,11 @@ func (iRl *IpRateLimiter) Allow(ip string) bool {
 	iRl.mtx.Lock()
 	defer iRl.mtx.Unlock()
 	if iRl.isAttacked {
+		fmt.Println("attack")
 		return false
 	}
 	if iRl.isStoped {
+		fmt.Println("stop")
 		return true
 	}
 	_, ok := iRl.storage[ip]
@@ -67,17 +68,20 @@ func (iRl *IpRateLimiter) Allow(ip string) bool {
 		iRl.createNewIp(ip)
 	}
 	v := iRl.storage[ip]
-	times := time.Now().Unix() - v.lastAction.Load()
-	tokensToLoad := times * iRl.maxRequestIpInSecond
-	if tokensToLoad+v.tokens.Load() > iRl.maxToken {
-		v.tokens.Store(iRl.maxToken)
-	} else {
-		v.tokens.Store(tokensToLoad)
+	times := time.Now().UnixMicro() - v.lastAction
+	tokensToLoad := int64(float64(times) * float64(iRl.maxRequestIpInSecond) / 1000000.0)
+	if v.tokens <= iRl.maxToken {
+		if tokensToLoad+v.tokens > iRl.maxToken {
+			v.tokens = iRl.maxToken
+		} else {
+			v.tokens += tokensToLoad
+		}
 	}
-	tokensAfterSub := v.tokens.Load() - 1
+
+	tokensAfterSub := v.tokens - 1
 	if tokensAfterSub >= 0 {
-		v.tokens.Add(-1)
-		v.lastAction.Store(time.Now().Unix())
+		v.tokens -= 1
+		v.lastAction = time.Now().UnixMicro()
 		return true
 	}
 	return false
@@ -102,16 +106,16 @@ func (iRl *IpRateLimiter) LimitRequestsForEveryone(maxRequestIpInSecond int64) b
 	iRl.maxRequestIpInSecond = maxRequestIpInSecond / iRl.countIpAddres
 
 	for _, v := range iRl.storage {
-		v.maxRequestInMinute.Store(iRl.maxRequestIpInSecond)
+		v.maxRequestInMinute = iRl.maxRequestIpInSecond
 	}
 	return true
 }
 
 func (iRl *IpRateLimiter) createNewIp(ip string) {
 	v := &ipTokensBucket{}
-	v.maxToken.Store(iRl.maxRequestIpInSecond)
-	v.tokens.Store(iRl.maxToken)
-	v.maxRequestInMinute.Store(iRl.maxRequestIpInSecond)
+	v.maxToken = iRl.maxRequestIpInSecond
+	v.tokens = iRl.startQuantityTokens
+	v.maxRequestInMinute = iRl.maxRequestIpInSecond
 	iRl.countIpAddres++
 	iRl.storage[ip] = v
 }
@@ -123,7 +127,7 @@ func (iRl *IpRateLimiter) BlockedIp(ip string) bool {
 	if !ok {
 		return false
 	}
-	ipBucket.isBlocked.Store(true)
+	ipBucket.isBlocked = true
 	return true
 }
 
@@ -135,8 +139,8 @@ func (iRl *IpRateLimiter) startCleningStorage() {
 		case <-ticker.C:
 			iRl.mtx.Lock()
 			for k, v := range iRl.storage {
-				if time.Now().Unix()-v.lastAction.Load() > fiveMinutesInSecond {
-					fmt.Println(time.Now().Unix()-v.lastAction.Load() > fiveMinutesInSecond)
+				if time.Now().Unix()-v.lastAction > fiveMinutesInSecond {
+					fmt.Println(time.Now().Unix()-v.lastAction > fiveMinutesInSecond)
 					delete(iRl.storage, k)
 				}
 			}

@@ -59,6 +59,22 @@ type GlobalRateLimiterTestCase struct {
 	expectedRejectedQuantity   int
 }
 
+type IpRateLimiterTestCase struct {
+	name                   string
+	ips                    []IpBehavior
+	header                 string
+	method                 string
+	quantityOkRequests     int
+	quantityRejected       int
+	expectOkRequests       int
+	expectQuantityRejected int
+}
+
+type IpBehavior struct {
+	ip       string
+	behavior map[string]int //endpoints->requests
+}
+
 type headerForTests struct {
 	validAdminHeader    string
 	validEspHeader      string
@@ -139,7 +155,7 @@ func initTests(globalRL bool, ipRl bool) *ServerSettings {
 	server.logs = logs
 	server.login = login
 
-	server.ipRl = rate_limit.MakeIpRateLimiter(2, 2)
+	server.ipRl = rate_limit.MakeIpRateLimiter(10, 10)
 	server.globalRl = rate_limit.MakeGlobalRateLimiter(50, 50)
 	if globalRL {
 		server.r.Use(middleware.GlobalRateLimiterToMiddleware(server.globalRl, server.st))
@@ -1847,4 +1863,359 @@ func TestGlobalRateLimiter(t *testing.T) {
 		})
 
 	}
+}
+
+func TestIpRateLimited(t *testing.T) {
+	server := initTests(false, true)
+	ht := makeHeadersForTests(server)
+	time.Sleep(1 * time.Second)
+
+	testCases := []IpRateLimiterTestCase{
+		{
+			name: "valid_one_IP_valid_quantity",
+			ips: []IpBehavior{
+				{
+					ip: "190.168.0.1:12345",
+					behavior: map[string]int{
+						"/logs":    5,
+						"/devices": 4,
+					},
+				},
+			},
+			header:                 ht.validAdminHeader,
+			method:                 http.MethodGet,
+			expectOkRequests:       9,
+			expectQuantityRejected: 0,
+		},
+		{
+			name: "valid_one_IP_boundary_quantity",
+			ips: []IpBehavior{
+				{
+					ip: "190.168.0.1:12345",
+					behavior: map[string]int{
+						"/logs":    3,
+						"/devices": 4,
+						"/boards":  3,
+					},
+				},
+			},
+			header:                 ht.validAdminHeader,
+			method:                 http.MethodGet,
+			expectOkRequests:       10,
+			expectQuantityRejected: 0,
+		},
+		{
+			name: "inValid_one_IP_exceeded_quantity",
+			ips: []IpBehavior{
+				{
+					ip: "190.168.0.1:12345",
+					behavior: map[string]int{
+						"/logs":           8,
+						"/devices":        1,
+						"/boards":         1,
+						"/boards/esp32_1": 1,
+						"/devices/led1":   1,
+					},
+				},
+			},
+			header:                 ht.validAdminHeader,
+			method:                 http.MethodGet,
+			expectOkRequests:       10,
+			expectQuantityRejected: 2,
+		},
+		{
+			name: "inValid_one_IP_extra_exceeded_quantity",
+			ips: []IpBehavior{
+				{
+					ip: "190.168.0.1:12345",
+					behavior: map[string]int{
+						"/logs":           1000,
+						"/devices":        1000,
+						"/boards":         1000,
+						"/boards/esp32_1": 1000,
+						"/login":          1000,
+					},
+				},
+			},
+			header:                 ht.validAdminHeader,
+			method:                 http.MethodGet,
+			expectOkRequests:       10,
+			expectQuantityRejected: 4990,
+		},
+		{
+			name: "valid_two_IP_valid_quantity",
+			ips: []IpBehavior{
+				{
+					ip: "190.168.0.1:12345",
+					behavior: map[string]int{
+						"/logs":    5,
+						"/devices": 4,
+					},
+				},
+				{
+					ip: "192.168.0.1:12345",
+					behavior: map[string]int{
+						"/devices":        2,
+						"/boards":         3,
+						"/boards/esp32_1": 3,
+						"/logs":           1,
+					},
+				},
+			},
+			header:                 ht.validAdminHeader,
+			method:                 http.MethodGet,
+			expectOkRequests:       18,
+			expectQuantityRejected: 0,
+		},
+		{
+			name: "valid_two_IP_boundary_quantity",
+			ips: []IpBehavior{
+				{
+					ip: "190.168.0.1:12345",
+					behavior: map[string]int{
+						"/logs":          1,
+						"/devices":       3,
+						"/devices/led1":  2,
+						"/logs?jwtID=1":  2,
+						"/logs?logsID=1": 2,
+					},
+				},
+				{
+					ip: "192.168.0.1:12345",
+					behavior: map[string]int{
+						"/devices":        2,
+						"/boards":         3,
+						"/boards/esp32_1": 3,
+						"/logs":           1,
+						"/devices/led1":   1,
+					},
+				},
+			},
+			header:                 ht.validAdminHeader,
+			method:                 http.MethodGet,
+			expectOkRequests:       20,
+			expectQuantityRejected: 0,
+		},
+		{
+			name: "invalid_two_IP_exceeded_in_first_quantity",
+			ips: []IpBehavior{
+				{
+					ip: "190.168.0.1:12345",
+					behavior: map[string]int{
+						"/logs":          2,
+						"/devices":       3,
+						"/devices/led1":  2,
+						"/logs?jwtID=1":  2,
+						"/logs?logsID=1": 2,
+					},
+				},
+				{
+					ip: "192.168.0.1:12345",
+					behavior: map[string]int{
+						"/devices":        2,
+						"/boards":         3,
+						"/boards/esp32_1": 3,
+						"/logs":           1,
+						"/devices/led1":   1,
+					},
+				},
+			},
+			header:                 ht.validAdminHeader,
+			method:                 http.MethodGet,
+			expectOkRequests:       20,
+			expectQuantityRejected: 1,
+		},
+		{
+			name: "invalid_two_IP_exceeded_in_second_quantity",
+			ips: []IpBehavior{
+				{
+					ip: "190.168.0.1:12345",
+					behavior: map[string]int{
+						"/logs":          1,
+						"/devices":       3,
+						"/devices/led1":  2,
+						"/logs?jwtID=1":  2,
+						"/logs?logsID=1": 2,
+					},
+				},
+				{
+					ip: "192.168.0.1:12345",
+					behavior: map[string]int{
+						"/devices":        2,
+						"/boards":         3,
+						"/boards/esp32_1": 5,
+						"/logs":           1,
+						"/devices/led1":   1,
+					},
+				},
+			},
+			header:                 ht.validAdminHeader,
+			method:                 http.MethodGet,
+			expectOkRequests:       20,
+			expectQuantityRejected: 2,
+		},
+		{
+			name: "invalid_two_IP_exceeded_extra_exceeded_in_first_quantity",
+			ips: []IpBehavior{
+				{
+					ip: "190.168.0.1:12345",
+					behavior: map[string]int{
+						"/logs":          10,
+						"/devices":       10,
+						"/devices/led1":  10,
+						"/logs?jwtID=1":  10,
+						"/logs?logsID=1": 10,
+					},
+				},
+				{
+					ip: "192.168.0.1:12345",
+					behavior: map[string]int{
+						"/devices":        2,
+						"/boards":         3,
+						"/boards/esp32_1": 3,
+						"/logs":           1,
+						"/devices/led1":   1,
+					},
+				},
+			},
+			header:                 ht.validAdminHeader,
+			method:                 http.MethodGet,
+			expectOkRequests:       20,
+			expectQuantityRejected: 40,
+		},
+		{
+			name: "invalid_two_IP_extra_exceeded_quantity",
+			ips: []IpBehavior{
+				{
+					ip: "190.168.0.1:12345",
+					behavior: map[string]int{
+						"/logs":          10,
+						"/devices":       25,
+						"/devices/led1":  30,
+						"/logs?jwtID=1":  55,
+						"/logs?logsID=1": 120,
+					},
+				},
+				{
+					ip: "192.168.0.1:12345",
+					behavior: map[string]int{
+						"/devices": 120,
+						"/boards":  120,
+						"/logs":    50,
+					},
+				},
+			},
+			header:                 ht.validAdminHeader,
+			method:                 http.MethodGet,
+			expectOkRequests:       20,
+			expectQuantityRejected: 510,
+		},
+		{
+			name: "valid_three_IP_valid_quantity",
+			ips: []IpBehavior{
+				{
+					ip: "190.168.0.1:12345",
+					behavior: map[string]int{
+						"/logs":          2,
+						"/devices":       2,
+						"/devices/led1":  2,
+						"/logs?jwtID=1":  2,
+						"/logs?logsID=1": 2,
+					},
+				},
+				{
+					ip: "192.168.0.1:12345",
+					behavior: map[string]int{
+						"/devices": 10,
+					},
+				},
+				{
+					ip: "[:::1]:1234",
+					behavior: map[string]int{
+						"/boards/esp32_1": 10,
+					},
+				},
+			},
+			header:                 ht.validAdminHeader,
+			method:                 http.MethodGet,
+			expectOkRequests:       30,
+			expectQuantityRejected: 0,
+		},
+		{
+			name: "invalid_three_IP_exceeded_quantity",
+			ips: []IpBehavior{
+				{
+					ip: "190.168.0.1:12345",
+					behavior: map[string]int{
+						"/logs":          2,
+						"/devices":       3,
+						"/devices/led1":  2,
+						"/logs?jwtID=1":  2,
+						"/logs?logsID=1": 2,
+					},
+				},
+				{
+					ip: "192.168.0.1:12345",
+					behavior: map[string]int{
+						"/devices":        10,
+						"/logs":           2,
+						"/boards/esp32_1": 2,
+					},
+				},
+				{
+					ip: "[:::1]:1234",
+					behavior: map[string]int{
+						"/boards/esp32_1": 10,
+						"/boards":         5,
+					},
+				},
+			},
+			header:                 ht.validAdminHeader,
+			method:                 http.MethodGet,
+			expectOkRequests:       30,
+			expectQuantityRejected: 10,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, v := range tc.ips {
+				for k, v2 := range v.behavior {
+					req := httptest.NewRequest(tc.method, k, nil)
+					req.RemoteAddr = v.ip
+					req.Header.Set(key, tc.header)
+					for i := 0; i < v2; i++ {
+						w := httptest.NewRecorder()
+						server.r.ServeHTTP(w, req)
+						code := w.Code
+						if code == http.StatusOK {
+							tc.quantityOkRequests++
+						}
+						if code == http.StatusTooManyRequests {
+							tc.quantityRejected++
+						}
+					}
+				}
+			}
+
+			timeEnd := time.Now().UnixMicro()
+
+			if tc.quantityOkRequests != tc.expectOkRequests {
+				t.Errorf("got quantity ok requests: %d, expect: %d\n", tc.quantityOkRequests, tc.expectOkRequests)
+			}
+			if tc.quantityRejected != tc.expectQuantityRejected {
+				t.Errorf("got quantity rejected: %d, expect: %d\n", tc.quantityRejected, tc.expectQuantityRejected)
+			}
+			timeAfter := time.Now().UnixMicro() - timeEnd
+
+			remainder := 1*time.Second.Microseconds() - timeAfter
+
+			if remainder > 0 {
+				time.Sleep(time.Duration(remainder) * time.Microsecond)
+			}
+
+			// time.Sleep(1 * time.Second)
+		})
+	}
+
 }

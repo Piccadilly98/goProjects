@@ -30,7 +30,7 @@ func main() {
 	logs := handlers.MakeLogsHandler(st)
 	login := auth.MakeLoginHandlers(st, sm, tw)
 	globalRateLimiter := rate_limit.MakeGlobalRateLimiter(50, 50)
-	ipRl := rate_limit.MakeIpRateLimiter(1, 0)
+	ipRl := rate_limit.MakeIpRateLimiter(2, 2)
 
 	r.Use(middleware.GlobalRateLimiterToMiddleware(globalRateLimiter, st))
 	r.Use(middleware.IpRateLimiter(ipRl, st))

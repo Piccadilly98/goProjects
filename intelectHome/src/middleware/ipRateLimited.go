@@ -22,6 +22,7 @@ func IpRateLimiter(ipRate *rate_limit.IpRateLimiter, stor *storage.Storage) func
 			}()
 
 			host, _, err := net.SplitHostPort(r.RemoteAddr)
+			// fmt.Println(host)
 			if err != nil {
 				httpCode = http.StatusInternalServerError
 				errors = err.Error()
