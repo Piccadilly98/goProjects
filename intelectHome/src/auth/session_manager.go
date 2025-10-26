@@ -23,11 +23,10 @@ func MakeSessionManager() *SessionManager {
 		sessionByJWT:   make(map[string]*models.JWTinfo),
 		blackListJwtID: make(map[string]bool),
 	}
-	sm.blackListJwtID["fea7353b9c1b5449bb59071c62f908d2b5d5ce5ad654bdbfde31dc2ff0e4a4b6"] = true
 	return sm
 }
 
-func (s *SessionManager) checkActiveSession(hash string) bool {
+func (s *SessionManager) CheckActiveSession(hash string) bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -44,6 +43,16 @@ func (s *SessionManager) checkActiveSession(hash string) bool {
 	return true
 }
 
+func (s *SessionManager) getValidHashToken(token string) string {
+	hash := s.hashToken(token)
+	s.mtx.Lock()
+	_, ok := s.sessionByJWT[hash]
+	s.mtx.Unlock()
+	if !ok {
+		return ""
+	}
+	return hash
+}
 func (s *SessionManager) checkActiveSessionLogin(login string) (bool, string) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -64,7 +73,7 @@ func (s *SessionManager) checkBlackListJWT(jwtHash string) bool {
 
 func (s *SessionManager) NewSession(login string, role string, token string, exp time.Duration, id int64) bool {
 	hash := s.hashToken(token)
-	if s.checkActiveSession(hash) {
+	if s.CheckActiveSession(hash) {
 		return true
 	}
 	if ok, _ := s.checkActiveSessionLogin(login); ok {
@@ -98,7 +107,7 @@ func (s *SessionManager) CheckTokenValid(token string, claims *models.ClaimsJSON
 		err = fmt.Errorf("jwt in BL, hash: %s", hash)
 		return false, err
 	}
-	if !s.checkActiveSession(hash) {
+	if !s.CheckActiveSession(hash) {
 		err = fmt.Errorf("jwt not have active session, need /login")
 		return false, err
 	}

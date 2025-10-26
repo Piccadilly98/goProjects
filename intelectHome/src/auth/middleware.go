@@ -29,20 +29,30 @@ func MiddlewareAuth(stor *storage.Storage, sm *SessionManager) func(http.Handler
 					stor.NewLog(r, jwtClaims, httpCode, errors, attentions...)
 				}
 			}()
+			if r.URL.Path != "/login" && r.URL.Path != "/boards" && r.URL.Path != "/boards/esp32_1" &&
+				r.URL.Path != "/devices" && r.URL.Path != "/devices/led1" && r.URL.Path != "/logs" &&
+				r.URL.Path != "/control" {
+				next.ServeHTTP(w, r)
+				return
+			}
 			if r.URL.Path == "/login" {
 				deferNeed = false
 				next.ServeHTTP(w, r)
 				return
 			}
-			token, err := validateHeaderGetToken(r.Header)
-			if err != nil {
-				errors = err.Error()
-				httpCode = http.StatusUnauthorized
-				w.WriteHeader(httpCode)
-				w.Write([]byte(errors))
-				return
+			ok, tokenStr := ProcessingCookie(r)
+			if !ok {
+				token, err := validateHeaderGetToken(r.Header)
+				if err != nil {
+					errors = err.Error()
+					httpCode = http.StatusUnauthorized
+					w.WriteHeader(httpCode)
+					w.Write([]byte(errors))
+					return
+				}
+				tokenStr = token
 			}
-			ok, claims := ValidateToken(token, stor)
+			ok, claims := ValidateToken(tokenStr, stor)
 			if !ok {
 				httpCode = http.StatusUnauthorized
 				errors = "Invalid token!"
@@ -51,7 +61,7 @@ func MiddlewareAuth(stor *storage.Storage, sm *SessionManager) func(http.Handler
 				return
 			}
 			jwtClaims = claims
-			_, err = sm.CheckTokenValid(token, claims)
+			_, err := sm.CheckTokenValid(tokenStr, claims)
 			if err != nil {
 				httpCode = http.StatusUnauthorized
 				w.WriteHeader(httpCode)

@@ -16,6 +16,7 @@ import (
 )
 
 func main() {
+	url := ":8080"
 	godotenv.Load("/Users/flowerma/Desktop/goProjects/intelectHome/.env")
 	r := chi.NewRouter()
 	st := storage.MakeStorage("ADMIN", "ESP32_1", "ESP32_2")
@@ -28,6 +29,8 @@ func main() {
 	devices := handlers.MakeDevicesHandler(st)
 	devicesID := handlers.MakeDevicesIDHandler(st)
 	logs := handlers.MakeLogsHandler(st)
+	token := auth.PrintAdminKey(url, tw, sm, st)
+	quickAdmin := handlers.NewQuickAdmin(st, sm, token)
 	login := auth.MakeLoginHandlers(st, sm, tw)
 	globalRateLimiter := rate_limit.MakeGlobalRateLimiter(50, 50)
 	ipRl := rate_limit.MakeIpRateLimiter(2, 2)
@@ -43,12 +46,12 @@ func main() {
 		r.Get("/logs", logs.LogsHandler)
 		r.Post("/login", login.LoginHandler)
 	})
-
+	r.Get("/quick-auth-admin", quickAdmin.AddAdminCookie)
 	go func() {
 		time.Sleep(15 * time.Minute)
 		os.Exit(1)
 	}()
-	err := http.ListenAndServe(":8080", r)
+	err := http.ListenAndServe(url, r)
 	if err != nil {
 		log.Fatal(err)
 	}

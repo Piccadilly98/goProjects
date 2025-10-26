@@ -20,7 +20,12 @@ func IpRateLimiter(ipRate *rate_limit.IpRateLimiter, stor *storage.Storage) func
 					stor.NewLog(r, nil, httpCode, errors, attentions...)
 				}
 			}()
-
+			if r.URL.Path != "/login" && r.URL.Path != "/boards" && r.URL.Path != "/boards/esp32_1" &&
+				r.URL.Path != "/devices" && r.URL.Path != "/devices/led1" && r.URL.Path != "/logs" &&
+				r.URL.Path != "/control" {
+				next.ServeHTTP(w, r)
+				return
+			}
 			host, _, err := net.SplitHostPort(r.RemoteAddr)
 			// fmt.Println(host)
 			if err != nil {

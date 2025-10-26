@@ -6,12 +6,6 @@ import (
 	"time"
 )
 
-/*
-ip rate limited - 100 requests in minutes
-no gorutine
-cleaning ip map once 5 minutes
-*/
-
 var (
 	fiveMinutesInMicro = int64(5 * time.Minute / time.Microsecond)
 )
@@ -141,9 +135,11 @@ func (iRl *IpRateLimiter) startCleningStorage() {
 	defer ticker.Stop()
 	select {
 	case <-iRl.isStopedChan:
+		iRl.mtx.Lock()
 		for k := range iRl.storage {
 			delete(iRl.storage, k)
 		}
+		iRl.mtx.Unlock()
 		return
 	case <-ticker.C:
 		iRl.mtx.Lock()
@@ -153,7 +149,6 @@ func (iRl *IpRateLimiter) startCleningStorage() {
 			}
 		}
 		iRl.mtx.Unlock()
-
 	}
 }
 
