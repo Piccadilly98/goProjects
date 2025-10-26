@@ -33,11 +33,11 @@ func main() {
 	quickAdmin := handlers.NewQuickAdmin(st, sm, token)
 	login := auth.MakeLoginHandlers(st, sm, tw)
 	globalRateLimiter := rate_limit.MakeGlobalRateLimiter(1, 1)
-	ipRl := rate_limit.MakeIpRateLimiter(2, 2)
+	// ipRl := rate_limit.MakeIpRateLimiter(2, 2)
 	adminGlobal := handlers.NewAdminControlRL(st, globalRateLimiter)
 
 	r.Use(middleware.GlobalRateLimiterToMiddleware(globalRateLimiter, st))
-	r.Use(middleware.IpRateLimiter(ipRl, st))
+	// r.Use(middleware.IpRateLimiter(ipRl, st))
 	r.With(middlewareAuth).Route("/", func(r chi.Router) {
 		r.Post("/control", control.Control)
 		r.HandleFunc("/boards/{boardID}", boardsID.BoardsIDHandler)

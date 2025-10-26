@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
+	"sync"
 
 	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
 	"github.com/Piccadilly98/goProjects/intelectHome/src/rate_limit"
@@ -17,6 +17,7 @@ import (
 type AdminControlGlobalRl struct {
 	stor     *storage.Storage
 	globalRl *rate_limit.GlobalRateLimiter
+	mtx      sync.Mutex
 }
 
 const (
@@ -135,17 +136,7 @@ func (a *AdminControlGlobalRl) ControlRlHandler(w http.ResponseWriter, r *http.R
 				return
 			}
 		}
-		a.globalRl.Restart()
-		time.Sleep(50 * time.Millisecond)
-		a.globalRl = rate_limit.MakeGlobalRateLimiter(body.ReqInSecond, int64(body.StartTokens))
-		if a.globalRl == nil {
-			httpCode = http.StatusInternalServerError
-			errors = "new globalRL not created!"
-			w.WriteHeader(httpCode)
-			response := `{"success": "false","error":"server error"}`
-			w.Write([]byte(response))
-			return
-		}
+		a.globalRl.ChangeLimits(body.ReqInSecond, body.StartTokens)
 		w.WriteHeader(httpCode)
 		response := `{"success": "true"}`
 		w.Write([]byte(response))

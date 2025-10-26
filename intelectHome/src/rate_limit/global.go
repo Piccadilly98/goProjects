@@ -63,6 +63,7 @@ func (rl *GlobalRateLimiter) StopRefillToken(isAttacked bool) {
 }
 
 func (rl *GlobalRateLimiter) Allow() bool {
+	fmt.Println(rl.attacked.Load())
 	if rl.attacked.Load() {
 		fmt.Println(1)
 		return false
@@ -92,4 +93,19 @@ func (rl *GlobalRateLimiter) Restart() {
 
 func (rl *GlobalRateLimiter) GetAttackedStatus() bool {
 	return rl.attacked.Load()
+}
+
+func (rl *GlobalRateLimiter) ChangeLimits(reqInSecond, startTokens int) {
+	rl.mtx.Lock()
+	rl.ctxCancel()
+	time.Sleep(30 * time.Millisecond)
+	rl.ctx, rl.ctxCancel = context.WithCancel(context.Background())
+	rl.tokenBucket.Store(int64(startTokens))
+	rl.duration = time.Duration(1000/reqInSecond) * time.Millisecond
+	rl.maxTokens = int64(reqInSecond)
+	rl.stopped.Store(false)
+	rl.attacked.Store(false)
+	go rl.refillBucket()
+	rl.mtx.Unlock()
+	time.Sleep(900 * time.Millisecond)
 }
