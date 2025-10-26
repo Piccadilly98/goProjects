@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/Piccadilly98/goProjects/intelectHome/src/auth"
 	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
@@ -29,6 +30,14 @@ func (q *QuickAdmin) AddAdminCookie(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		q.stor.NewLog(r, jwtClaims, httpCode, errors, attentions...)
 	}()
+	ok, jwtClaims := auth.ValidateToken(q.token, q.stor)
+	if !ok {
+		errors = "invalid admin token"
+		httpCode = http.StatusNotFound
+		w.WriteHeader(httpCode)
+		w.Write([]byte("404 page not found"))
+		return
+	}
 	hash := r.URL.Query().Get("hash")
 	if !q.sm.CheckActiveSession(hash) {
 		httpCode = http.StatusNotFound
@@ -38,11 +47,12 @@ func (q *QuickAdmin) AddAdminCookie(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cookie := &http.Cookie{
-		Name:     "jwt_token",
+		Name:     os.Getenv("COOKIE_NAME"),
 		Value:    q.token,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
+		MaxAge:   60 * 60 * 100,
 	}
 
 	http.SetCookie(w, cookie)

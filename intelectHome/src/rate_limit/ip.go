@@ -61,7 +61,7 @@ func (iRl *IpRateLimiter) Allow(ip string) bool {
 	}
 	_, ok := iRl.storage[ip]
 	if !ok {
-		iRl.storage[ip] = iRl.createNewIp(ip)
+		iRl.storage[ip] = iRl.createNewIp()
 	}
 	v := iRl.storage[ip]
 	times := time.Now().UnixMicro() - v.lastAction
@@ -110,7 +110,7 @@ func (iRl *IpRateLimiter) LimitRequestsForEveryone(maxRequestIpInSecond int64) b
 	return true
 }
 
-func (iRl *IpRateLimiter) createNewIp(ip string) *ipTokensBucket {
+func (iRl *IpRateLimiter) createNewIp() *ipTokensBucket {
 	v := &ipTokensBucket{}
 	v.maxToken = iRl.maxRequestIpInSecond
 	v.tokens = iRl.startQuantityTokens
@@ -119,15 +119,16 @@ func (iRl *IpRateLimiter) createNewIp(ip string) *ipTokensBucket {
 	return v
 }
 
-func (iRl *IpRateLimiter) BlockedIp(ip string) bool {
+func (iRl *IpRateLimiter) BlockedIp(ip string) {
 	iRl.mtx.Lock()
 	defer iRl.mtx.Unlock()
 	ipBucket, ok := iRl.storage[ip]
 	if !ok {
-		return false
+		iRl.storage[ip] = &ipTokensBucket{
+			isBlocked: true,
+		}
 	}
 	ipBucket.isBlocked = true
-	return true
 }
 
 func (iRl *IpRateLimiter) startCleningStorage() {

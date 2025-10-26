@@ -2,7 +2,9 @@ package rate_limit
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -15,6 +17,7 @@ type GlobalRateLimiter struct {
 	ctxCancel   context.CancelFunc
 	stopped     atomic.Bool
 	attacked    atomic.Bool
+	mtx         sync.Mutex
 }
 
 func MakeGlobalRateLimiter(maxRequestInSecond int, StartQuantityTokens int64) *GlobalRateLimiter {
@@ -41,13 +44,11 @@ func (rl *GlobalRateLimiter) refillBucket() {
 	for {
 		select {
 		case <-ticker.C:
-			tokens := rl.tokenBucket.Load()
-			if tokens < rl.maxTokens {
+			if rl.tokenBucket.Load() < rl.maxTokens {
 				rl.tokenBucket.Add(1)
 			}
 		case <-rl.ctx.Done():
 			log.Printf("Tokens refil stop, count tokens: %d\n", rl.tokenBucket.Load())
-			rl.stopped.Store(true)
 			return
 		}
 	}
@@ -55,25 +56,40 @@ func (rl *GlobalRateLimiter) refillBucket() {
 
 func (rl *GlobalRateLimiter) StopRefillToken(isAttacked bool) {
 	rl.attacked.Store(isAttacked)
+	rl.stopped.Store(true)
+	rl.mtx.Lock()
 	rl.ctxCancel()
+	rl.mtx.Unlock()
 }
 
 func (rl *GlobalRateLimiter) Allow() bool {
 	if rl.attacked.Load() {
+		fmt.Println(1)
 		return false
 	}
 	if rl.stopped.Load() {
+		fmt.Println(2)
 		return true
 	}
 	if tokens := rl.tokenBucket.Load(); tokens > 0 {
+		fmt.Println(3)
 		rl.tokenBucket.Add(-1)
 		return true
 	}
+	fmt.Println(4)
 	return false
 }
 
-func (rl *GlobalRateLimiter) Restart(maxRequestInSecond int, StartQuantityTokens int64) *GlobalRateLimiter {
-	global := MakeGlobalRateLimiter(maxRequestInSecond, StartQuantityTokens)
+func (rl *GlobalRateLimiter) Restart() {
+	rl.mtx.Lock()
+	rl.ctxCancel()
+	rl.ctx, rl.ctxCancel = context.WithCancel(context.Background())
+	rl.attacked.Store(false)
+	rl.stopped.Store(false)
+	rl.mtx.Unlock()
+	go rl.refillBucket()
+}
 
-	return global
+func (rl *GlobalRateLimiter) GetAttackedStatus() bool {
+	return rl.attacked.Load()
 }

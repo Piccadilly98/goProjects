@@ -29,12 +29,6 @@ func MiddlewareAuth(stor *storage.Storage, sm *SessionManager) func(http.Handler
 					stor.NewLog(r, jwtClaims, httpCode, errors, attentions...)
 				}
 			}()
-			if r.URL.Path != "/login" && r.URL.Path != "/boards" && r.URL.Path != "/boards/esp32_1" &&
-				r.URL.Path != "/devices" && r.URL.Path != "/devices/led1" && r.URL.Path != "/logs" &&
-				r.URL.Path != "/control" {
-				next.ServeHTTP(w, r)
-				return
-			}
 			if r.URL.Path == "/login" {
 				deferNeed = false
 				next.ServeHTTP(w, r)

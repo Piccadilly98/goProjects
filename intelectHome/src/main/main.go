@@ -32,8 +32,9 @@ func main() {
 	token := auth.PrintAdminKey(url, tw, sm, st)
 	quickAdmin := handlers.NewQuickAdmin(st, sm, token)
 	login := auth.MakeLoginHandlers(st, sm, tw)
-	globalRateLimiter := rate_limit.MakeGlobalRateLimiter(50, 50)
+	globalRateLimiter := rate_limit.MakeGlobalRateLimiter(1, 1)
 	ipRl := rate_limit.MakeIpRateLimiter(2, 2)
+	adminGlobal := handlers.NewAdminControlRL(st, globalRateLimiter)
 
 	r.Use(middleware.GlobalRateLimiterToMiddleware(globalRateLimiter, st))
 	r.Use(middleware.IpRateLimiter(ipRl, st))
@@ -45,6 +46,7 @@ func main() {
 		r.Get("/devices/{deviceID}", devicesID.DevicesIDHandler)
 		r.Get("/logs", logs.LogsHandler)
 		r.Post("/login", login.LoginHandler)
+		r.Patch("/admin/global-rl/{action}", adminGlobal.ControlRlHandler)
 	})
 	r.Get("/quick-auth-admin", quickAdmin.AddAdminCookie)
 	go func() {

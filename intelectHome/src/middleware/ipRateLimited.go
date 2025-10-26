@@ -3,6 +3,7 @@ package middleware
 import (
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/Piccadilly98/goProjects/intelectHome/src/rate_limit"
 	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
@@ -22,12 +23,14 @@ func IpRateLimiter(ipRate *rate_limit.IpRateLimiter, stor *storage.Storage) func
 			}()
 			if r.URL.Path != "/login" && r.URL.Path != "/boards" && r.URL.Path != "/boards/esp32_1" &&
 				r.URL.Path != "/devices" && r.URL.Path != "/devices/led1" && r.URL.Path != "/logs" &&
-				r.URL.Path != "/control" {
-				next.ServeHTTP(w, r)
+				r.URL.Path != "/control" && !strings.Contains(r.URL.Path, "/quick-auth-admin") && !strings.Contains(r.URL.Path, "/admin/global") {
+				httpCode = http.StatusNotFound
+				errors = "404 page not found"
+				w.WriteHeader(httpCode)
+				w.Write([]byte(errors))
 				return
 			}
 			host, _, err := net.SplitHostPort(r.RemoteAddr)
-			// fmt.Println(host)
 			if err != nil {
 				httpCode = http.StatusInternalServerError
 				errors = err.Error()
