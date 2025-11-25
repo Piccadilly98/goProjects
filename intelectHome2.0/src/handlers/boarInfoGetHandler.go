@@ -18,7 +18,7 @@ func MakeBoardInfoGetHandler(db *database.DataBase) *boardInfoGetHanlder {
 
 func (bi *boardInfoGetHanlder) Handler(w http.ResponseWriter, r *http.Request) {
 	param := chi.URLParam(r, "board_id")
-
+	w.Header().Set("Content-Type", "application/json")
 	if !ProcessingURLParam(w, r, param, bi.db) {
 		return
 	}

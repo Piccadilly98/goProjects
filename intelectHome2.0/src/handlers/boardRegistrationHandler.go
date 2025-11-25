@@ -9,7 +9,6 @@ import (
 
 	dto "github.com/Piccadilly98/goProjects/intelectHome2.0/src/DTO"
 	database "github.com/Piccadilly98/goProjects/intelectHome2.0/src/dataBase"
-	"github.com/go-chi/chi/v5"
 )
 
 type boardRegistration struct {
@@ -23,10 +22,7 @@ func MakeRegistrationHandler(db *database.DataBase) *boardRegistration {
 func (br *boardRegistration) RegistrationHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	upload := &dto.UploadBoardDataDto{}
-	param := chi.URLParam(r, "board_id")
-	if !ProcessingURLParam(w, r, param, br.db) {
-		return
-	}
+	w.Header().Set("Content-Type", "application/json")
 	if !br.readBodyWriteHeader(w, r, upload) {
 		return
 	}

@@ -28,6 +28,7 @@ func main() {
 		db.Close()
 		fmt.Println("Сворачиваемся")
 	}()
+
 	sw := status_worker.MakeStatusWorker(db, 30*time.Second, 150*time.Second)
 	errWork := database.MakeErrorWorker(db)
 	errWork.Start()
@@ -39,6 +40,10 @@ func main() {
 	get := handlers.MakeBoardIDGet(db)
 	updateInfo := handlers.MakeUpdateBoardInfoHandler(db, upateChan)
 	getInfo := handlers.MakeBoardInfoGetHandler(db)
+	boardsGet := handlers.MakeBoardsGetHandler(db)
+	conrollersGet := handlers.MakeBoardControllersHandler(db)
+	r.Get("/boards/{board_id}/controllers", conrollersGet.Handler)
+	r.Get("/boards", boardsGet.Handler)
 	r.Get("/boards/{board_id}/info", getInfo.Handler)
 	r.Patch("/boards/{board_id}/info", updateInfo.Handler)
 	r.Get("/boards/{board_id}", get.Handler)

@@ -15,6 +15,13 @@ import (
 	dto "github.com/Piccadilly98/goProjects/intelectHome2.0/src/DTO"
 )
 
+const (
+	StatusRegistred = "registred"
+	StatusActive    = "active"
+	StatusLost      = "lost"
+	StatusNotActive = "offline"
+)
+
 type DataBase struct {
 	host      string
 	port      string
@@ -254,6 +261,100 @@ func (db *DataBase) UpdateBoardInfo(ctx context.Context, id string, data *dto.Up
 		return code, err
 	}
 	return http.StatusOK, nil
+}
+
+func (db *DataBase) GetAllBoardsWithConditions(ctx context.Context, state string, boardId string, boardType string, name string) ([]dto.GetBoardDataDto, int, error) {
+	if !db.isConnect.Load() {
+		return nil, http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
+	}
+	var sets []string
+	var args []any
+	var quantityArgs int
+	if boardId != "" {
+		quantityArgs++
+		str := ""
+		if quantityArgs == 1 {
+			str = fmt.Sprintf("WHERE board_id = $%d", quantityArgs)
+		} else {
+			str = fmt.Sprintf("board_id = $%d", quantityArgs)
+		}
+		sets = append(sets, str)
+		args = append(args, boardId)
+	}
+	if state != "" {
+		quantityArgs++
+		str := ""
+		if quantityArgs == 1 {
+			str = fmt.Sprintf("WHERE board_state=$%d", quantityArgs)
+		} else {
+			str = fmt.Sprintf("board_state=$%d", quantityArgs)
+		}
+		sets = append(sets, str)
+		args = append(args, state)
+	}
+	if boardType != "" {
+		quantityArgs++
+		str := ""
+		if quantityArgs == 1 {
+			str = fmt.Sprintf("WHERE type=$%d", quantityArgs)
+		} else {
+			str = fmt.Sprintf("type=$%d", quantityArgs)
+		}
+		sets = append(sets, str)
+		args = append(args, boardType)
+	}
+	if name != "" {
+		quantityArgs++
+		str := ""
+		if quantityArgs == 1 {
+			str = fmt.Sprintf("WHERE name=$%d", quantityArgs)
+		} else {
+			str = fmt.Sprintf("name=$%d", quantityArgs)
+		}
+		sets = append(sets, str)
+		args = append(args, name)
+	}
+	qery := "SELECT board_id, name, type, board_state, created_date, updated FROM boards " + strings.Join(sets, " AND ")
+	if !db.isConnect.Load() {
+		return nil, http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
+	}
+
+	res := []dto.GetBoardDataDto{}
+
+	rows, err := db.GetPointer().QueryContext(ctx, qery, args...)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return res, http.StatusOK, nil
+		}
+		code, err := db.processingError(err)
+		return nil, code, err
+	}
+
+	for rows.Next() {
+		dto := &dto.GetBoardDataDto{}
+
+		err := rows.Scan(&dto.BoardId, &dto.Name, &dto.BoardType, &dto.BoardState, &dto.CreatedDate, &dto.UpdatedDate)
+		if err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+		res = append(res, *dto)
+	}
+	return res, http.StatusOK, nil
+}
+
+func (db *DataBase) GetControllersByte(ctx context.Context, id string) ([]byte, int, error) {
+	if !db.IsConnect() {
+		return nil, http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
+	}
+	res := []byte{}
+	err := db.GetPointer().QueryRowContext(ctx, `
+	SELECT jsonb_agg(controllers) FROM boards
+	WHERE board_id = $1`, id).Scan(&res)
+	if err != nil {
+		code, err := db.processingError(err)
+		return nil, code, err
+	}
+	return res, http.StatusOK, nil
 }
 
 func (db *DataBase) Close() {

@@ -27,6 +27,7 @@ func MakeUpdateBoardInfoHandler(db *database.DataBase, chanUpdate chan string) *
 func (ub *updateBoardInfoHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	param := chi.URLParam(r, "board_id")
 	data := &dto.UpdateBoardInfo{}
+	w.Header().Set("Content-Type", "application/json")
 	if !ub.processingURLAndBody(w, r, param, data) {
 		return
 	}

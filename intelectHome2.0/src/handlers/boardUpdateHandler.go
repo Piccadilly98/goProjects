@@ -26,6 +26,7 @@ func MakeBoardUpdateHandler(db *database.DataBase) *boardUpdate {
 
 func (bu *boardUpdate) Handler(w http.ResponseWriter, r *http.Request) {
 	param := chi.URLParam(r, urlPath)
+	w.Header().Set("Content-Type", "application/json")
 	if !ProcessingURLParam(w, r, param, bu.db) {
 		return
 	}
