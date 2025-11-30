@@ -14,7 +14,7 @@ func ProcessingURLParam(w http.ResponseWriter, r *http.Request, param string, db
 		w.Write([]byte(`{"status":"error", "text":"invalid board_id"}`))
 		return false
 	}
-	exist, code, err := db.GetExistWithId(r.Context(), param)
+	exist, code, err := db.GetExistWithBoardId(r.Context(), param)
 	if err != nil {
 		log.Println(err.Error())
 		if code == 0 {

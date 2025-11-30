@@ -124,7 +124,7 @@ func (db *DataBase) Recover() bool {
 	return false
 }
 
-func (db *DataBase) GetExistWithId(ctx context.Context, id string) (bool, int, error) {
+func (db *DataBase) GetExistWithBoardId(ctx context.Context, id string) (bool, int, error) {
 	var exist bool
 	if !db.isConnect.Load() {
 		return false, http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
@@ -137,6 +137,72 @@ func (db *DataBase) GetExistWithId(ctx context.Context, id string) (bool, int, e
 	return exist, http.StatusOK, nil
 }
 
+func (db *DataBase) GetExistWithDeviceId(ctx context.Context, deviceId string) (int, error) {
+	var exist bool
+	if !db.IsConnect() {
+		return http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
+	}
+	rows, err := db.GetPointer().QueryContext(ctx, `
+	SELECT EXISTS (
+  	SELECT 1
+  	FROM boards,
+       jsonb_array_elements(controllers->'devices'->'binary')  AS elem
+ 	 WHERE elem->>'controller_id' = $1
+
+  	UNION ALL
+
+ 	 SELECT 1
+  	FROM boards,
+       jsonb_array_elements(controllers->'devices'->'sensor')  AS elem
+  	WHERE elem->>'controller_id' = $1
+	);`, deviceId)
+	if err != nil {
+		code, err := db.processingError(err)
+		return code, err
+	}
+
+	for rows.Next() {
+		err := rows.Scan(&exist)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+		if exist {
+			rows.Close()
+			return http.StatusBadRequest, fmt.Errorf("controller id - %s contains in boards ", deviceId)
+		}
+	}
+	return http.StatusOK, nil
+}
+
+func (db *DataBase) RegistrationController(ctx context.Context, json []byte, boardID string, binary, sensor bool) (int, error) {
+	if !db.IsConnect() {
+		return http.StatusServiceUnavailable, fmt.Errorf("fail connection db")
+	}
+	query := ""
+	if binary {
+		query = `UPDATE boards
+	SET controllers = jsonb_set(
+	controllers,
+	'{devices, binary}',
+	COALESCE(controllers->'devices'->'binary', '[]') || $1::jsonb
+	),updated = now()
+	WHERE board_id = $2;`
+	} else if sensor {
+		query = `UPDATE boards
+	SET controllers = jsonb_set(
+	controllers,
+	'{devices, sensor}',
+	COALESCE(controllers->'devices'->'sensor', '[]') || $1::jsonb
+	),updated = now()
+	WHERE board_id = $2;`
+	}
+	_, err := db.GetPointer().ExecContext(ctx, query, json, boardID)
+	if err != nil {
+		code, err := db.processingError(err)
+		return code, err
+	}
+	return http.StatusCreated, nil
+}
 func (db *DataBase) GetDtoWithId(ctx context.Context, id string) (*dto.GetBoardDataDto, int, error) {
 	if !db.isConnect.Load() {
 		return nil, http.StatusServiceUnavailable, fmt.Errorf("fail connection db")
@@ -348,7 +414,7 @@ func (db *DataBase) GetControllersByte(ctx context.Context, id string) ([]byte, 
 	}
 	res := []byte{}
 	err := db.GetPointer().QueryRowContext(ctx, `
-	SELECT jsonb_agg(controllers) FROM boards
+	SELECT controllers->'devices' FROM boards
 	WHERE board_id = $1`, id).Scan(&res)
 	if err != nil {
 		code, err := db.processingError(err)

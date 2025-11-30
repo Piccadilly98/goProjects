@@ -42,6 +42,7 @@ func (bu *boardUpdate) Handler(w http.ResponseWriter, r *http.Request) {
 		if code == 0 {
 			return
 		}
+		w.WriteHeader(code)
 		errResponse := fmt.Sprintf(`{"status":"error", "text":"%s"}`, err.Error())
 		w.Write([]byte(errResponse))
 		return

@@ -43,7 +43,7 @@ func (ub *updateBoardInfoHandler) Handler(w http.ResponseWriter, r *http.Request
 }
 
 func (ub *updateBoardInfoHandler) processingURLAndBody(w http.ResponseWriter, r *http.Request, param string, data *dto.UpdateBoardInfo) bool {
-	exist, code, err := ub.db.GetExistWithId(r.Context(), param)
+	exist, code, err := ub.db.GetExistWithBoardId(r.Context(), param)
 	if err != nil {
 		log.Println(err.Error())
 		if code == 0 {
