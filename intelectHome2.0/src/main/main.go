@@ -42,6 +42,8 @@ func main() {
 	boardsGet := handlers.MakeBoardsGetHandler(db)
 	controllersGet := handlers.MakeBoardControllersHandler(db)
 	controllersReg := handlers.MakeControllersRegistrationHandler(db)
+	controllerUpdate := handlers.MakeControllerUpdateHandler(db)
+	r.Patch("/boards/{board_id}/controllers/{controller_id}", controllerUpdate.Handler)
 	r.Get("/boards/{board_id}/controllers", controllersGet.Handler)
 	r.Post("/boards/{board_id}/controllers", controllersReg.Handler)
 	r.Get("/boards", boardsGet.Handler)

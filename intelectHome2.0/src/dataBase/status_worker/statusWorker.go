@@ -73,12 +73,13 @@ func (sw *StatusWorker) startMarkBoardStateBeforeUpdate() {
 			if !sw.db.IsConnect() {
 				time.Sleep(sw.intervalUpdate * 2)
 				if !sw.db.IsConnect() {
+					log.Printf("Status worker: not update status board: %s, DB error\n", id)
 					continue
 				}
 			}
 			_, err := sw.db.GetPointer().Exec(`
 		UPDATE boards b
-		SET board_state = $1, updated = NOW()
+		SET board_state = $1, updated_date = NOW()
 		FROM boardInfo bi
 		WHERE b.board_id = $2
 		AND bi.updated_date IS NOT NULL;`,
@@ -91,6 +92,7 @@ func (sw *StatusWorker) startMarkBoardStateBeforeUpdate() {
 				}
 				continue
 			}
+			log.Printf("set active status in board_id: %s\n", id)
 		}
 	}
 }
@@ -109,15 +111,23 @@ func (sw *StatusWorker) UpdateStatuses() {
 func (sw *StatusWorker) proccesingStatusLost() {
 	intervalStr := fmt.Sprintf("%d seconds", int(sw.intervalUpdate.Seconds()))
 	offlineTime := fmt.Sprintf("%d seconds", int(sw.offlineTime.Seconds()))
-	_, err := sw.db.GetPointer().Exec(
+	res, err := sw.db.GetPointer().Exec(
 		`UPDATE boards b
-		SET board_state = $1, updated = NOW()
+		SET board_state = $1, updated_date = NOW()
 		FROM boardInfo bi
 		WHERE b.board_id = bi.board_id
 		AND bi.updated_date <= NOW() - $2::interval
 		AND bi.updated_date >= NOW() - $3::interval
 		AND b.board_state != $4;`,
 		StatusLost, intervalStr, offlineTime, StatusLost)
+	if err != nil {
+		select {
+		case sw.errChan <- err:
+		default:
+		}
+		return
+	}
+	aff, err := res.RowsAffected()
 	if err != nil {
 		log.Println(err.Error())
 		select {
@@ -126,13 +136,16 @@ func (sw *StatusWorker) proccesingStatusLost() {
 		}
 		return
 	}
+	if aff > 0 {
+		log.Printf("set lost status in %d row\n", aff)
+	}
 }
 
 func (sw *StatusWorker) proccesingStatusOffline() {
 	offlineTime := fmt.Sprintf("%d seconds", int(sw.offlineTime.Seconds()))
-	_, err := sw.db.GetPointer().Exec(`
+	res, err := sw.db.GetPointer().Exec(`
 	UPDATE boards b
-		SET board_state = $1, updated = NOW()
+		SET board_state = $1, updated_date = NOW()
 		FROM boardInfo bi
 		WHERE b.board_id = bi.board_id
 		AND bi.updated_date <= NOW() - $2::interval
@@ -140,12 +153,23 @@ func (sw *StatusWorker) proccesingStatusOffline() {
 `, StatusNotActive, offlineTime, StatusNotActive)
 
 	if err != nil {
-		log.Println(err.Error())
 		select {
 		case sw.errChan <- err:
 		default:
 		}
 		return
+	}
+
+	aff, err := res.RowsAffected()
+	if err != nil {
+		select {
+		case sw.errChan <- err:
+		default:
+		}
+		return
+	}
+	if aff > 0 {
+		log.Printf("set offline status in %d row\n", aff)
 	}
 }
 

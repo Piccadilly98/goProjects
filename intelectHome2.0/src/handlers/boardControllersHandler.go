@@ -18,10 +18,10 @@ func MakeBoardControllersHandler(db *database.DataBase) *boardControllersHandler
 
 func (bc *boardControllersHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	param := chi.URLParam(r, "board_id")
+	w.Header().Set("Content-Type", "application/json")
 	if !ProcessingURLParam(w, r, param, bc.db) {
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
 	res, code, err := bc.db.GetControllersByte(r.Context(), param)
 	if err != nil {
 		if code == 0 {

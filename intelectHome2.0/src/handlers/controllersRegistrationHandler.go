@@ -70,7 +70,7 @@ func (cr *controllersRegistrationHandler) readBodyAndGetDTO(w http.ResponseWrite
 }
 
 func (cr *controllersRegistrationHandler) processingDTOandGetJson(w http.ResponseWriter, r *http.Request, dto *dto.RegistrationController) (bool, bool, bool, []byte) {
-	code, err := cr.db.GetExistWithDeviceId(r.Context(), dto.ControllerID)
+	exist, code, err := cr.db.GetExistWithDeviceId(r.Context(), dto.ControllerID)
 	var sensor, binary bool
 	if err != nil {
 		if code == 0 {
@@ -79,6 +79,11 @@ func (cr *controllersRegistrationHandler) processingDTOandGetJson(w http.Respons
 		w.WriteHeader(code)
 		errResponse := fmt.Sprintf(`{"status":"error", "text":"%s"}`, err.Error())
 		w.Write([]byte(errResponse))
+		return false, false, false, nil
+	}
+	if exist {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(fmt.Sprintf(`{"status":"error", "text":"controller_id %s contains in board"}`, dto.ControllerID)))
 		return false, false, false, nil
 	}
 	var b []byte

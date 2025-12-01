@@ -20,6 +20,16 @@ const (
 	StatusActive    = "active"
 	StatusLost      = "lost"
 	StatusNotActive = "offline"
+
+	ControllerColumnName         = "name"
+	ControllerColumnType         = "type"
+	ControllerColumnCreated      = "created_date"
+	ControllerColumnUpdated      = "updated_date"
+	BinaryControllerColumnStatus = "status"
+	ControllerColumnPinNumber    = "pin_number"
+
+	SensorControllerColumnUnit  = "unit"
+	SensorControllerColumnValue = "value"
 )
 
 type DataBase struct {
@@ -46,7 +56,7 @@ func MakeDataBase(host string, port string, username string, nameDb string, pass
 		nameDb:   nameDb,
 		password: password,
 		db:       db,
-		errChan:  make(chan error, 10),
+		errChan:  make(chan error),
 	}
 	res.isConnect.Store(true)
 	return res, nil
@@ -83,18 +93,15 @@ func initDataBase(host string, port string, username string, nameDb string, pass
 	}
 	err = db.Ping()
 	if err != nil {
-		log.Println(err)
 		return nil, err
 	}
 	return db, nil
 }
 
 func (db *DataBase) Recover() bool {
-	db.mtx.Lock()
 	if !db.isConnect.Load() {
 		db.isConnect.Store(false)
 	}
-	defer db.mtx.Unlock()
 	if err := db.db.Ping(); err != nil {
 		for i := range 5 {
 			err := db.db.Ping()
@@ -102,20 +109,26 @@ func (db *DataBase) Recover() bool {
 				db.isConnect.Store(true)
 				return true
 			}
-			time.Sleep(time.Duration(i+1) * time.Second)
+			log.Printf("Connection re-try %d/5\n", i+1)
+			time.Sleep(time.Duration(i+(i*3)) * time.Second)
 		}
-		for range 3 {
+		db.mtx.Lock()
+		defer db.mtx.Unlock()
+		for i := range 3 {
 			db.db, err = initDataBase(db.host, db.port, db.username, db.nameDb, db.password)
 			if err != nil {
-				time.Sleep(5 * time.Second)
+				log.Printf("Init try %d/3\n", i+1)
+				time.Sleep(10 * time.Second)
 				continue
 			}
+			time.Sleep(2 * time.Second)
 			err = db.db.Ping()
 			if err == nil {
 				db.isConnect.Store(true)
 				return true
 			}
-			time.Sleep(5 * time.Second)
+			log.Printf("DB Init try %d/3\n", i+1)
+			time.Sleep(10 * time.Second)
 		}
 	} else {
 		db.isConnect.Store(true)
@@ -137,12 +150,12 @@ func (db *DataBase) GetExistWithBoardId(ctx context.Context, id string) (bool, i
 	return exist, http.StatusOK, nil
 }
 
-func (db *DataBase) GetExistWithDeviceId(ctx context.Context, deviceId string) (int, error) {
+func (db *DataBase) GetExistWithDeviceId(ctx context.Context, deviceId string) (bool, int, error) {
 	var exist bool
 	if !db.IsConnect() {
-		return http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
+		return false, http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
 	}
-	rows, err := db.GetPointer().QueryContext(ctx, `
+	err := db.GetPointer().QueryRowContext(ctx, `
 	SELECT EXISTS (
   	SELECT 1
   	FROM boards,
@@ -155,23 +168,13 @@ func (db *DataBase) GetExistWithDeviceId(ctx context.Context, deviceId string) (
   	FROM boards,
        jsonb_array_elements(controllers->'devices'->'sensor')  AS elem
   	WHERE elem->>'controller_id' = $1
-	);`, deviceId)
+	);`, deviceId).Scan(&exist)
 	if err != nil {
 		code, err := db.processingError(err)
-		return code, err
+		return false, code, err
 	}
 
-	for rows.Next() {
-		err := rows.Scan(&exist)
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
-		if exist {
-			rows.Close()
-			return http.StatusBadRequest, fmt.Errorf("controller id - %s contains in boards ", deviceId)
-		}
-	}
-	return http.StatusOK, nil
+	return exist, http.StatusOK, nil
 }
 
 func (db *DataBase) RegistrationController(ctx context.Context, json []byte, boardID string, binary, sensor bool) (int, error) {
@@ -185,7 +188,7 @@ func (db *DataBase) RegistrationController(ctx context.Context, json []byte, boa
 	controllers,
 	'{devices, binary}',
 	COALESCE(controllers->'devices'->'binary', '[]') || $1::jsonb
-	),updated = now()
+	),updated_date = now()
 	WHERE board_id = $2;`
 	} else if sensor {
 		query = `UPDATE boards
@@ -193,7 +196,7 @@ func (db *DataBase) RegistrationController(ctx context.Context, json []byte, boa
 	controllers,
 	'{devices, sensor}',
 	COALESCE(controllers->'devices'->'sensor', '[]') || $1::jsonb
-	),updated = now()
+	),updated_date = now()
 	WHERE board_id = $2;`
 	}
 	_, err := db.GetPointer().ExecContext(ctx, query, json, boardID)
@@ -209,7 +212,7 @@ func (db *DataBase) GetDtoWithId(ctx context.Context, id string) (*dto.GetBoardD
 	}
 	dto := dto.GetBoardDataDto{}
 	err := db.GetPointer().QueryRowContext(ctx, `
-	SELECT board_id, name, type, board_state, created_date, updated FROM boards
+	SELECT board_id, name, type, board_state, created_date, updated_date FROM boards
 	WHERE board_id = $1;
 	`, id).Scan(&dto.BoardId, &dto.Name, &dto.BoardType, &dto.BoardState, &dto.CreatedDate, &dto.UpdatedDate)
 	if err != nil {
@@ -290,7 +293,7 @@ func (db *DataBase) UpdateBoard(ctx context.Context, boardID string, dto *dto.Up
 		argNum++
 	}
 
-	sets = append(sets, "updated = NOW()")
+	sets = append(sets, "updated_date = NOW()")
 
 	query := "UPDATE boards SET " + strings.Join(sets, ", ") +
 		fmt.Sprintf(" WHERE board_id = $%d", argNum)
@@ -380,7 +383,7 @@ func (db *DataBase) GetAllBoardsWithConditions(ctx context.Context, state string
 		sets = append(sets, str)
 		args = append(args, name)
 	}
-	qery := "SELECT board_id, name, type, board_state, created_date, updated FROM boards " + strings.Join(sets, " AND ")
+	qery := "SELECT board_id, name, type, board_state, created_date, updated_date FROM boards " + strings.Join(sets, " AND ")
 	if !db.isConnect.Load() {
 		return nil, http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
 	}
@@ -422,6 +425,85 @@ func (db *DataBase) GetControllersByte(ctx context.Context, id string) ([]byte, 
 	}
 	return res, http.StatusOK, nil
 }
+
+func (db *DataBase) GetJSONBuilderArgs(boardID string, dto *dto.ControllerUpdateDTO) ([]string, []any, int) {
+	var sets []string
+	var args []any
+
+	argNum := 2
+	args = append(args, dto.ControllerID)
+	if dto.Name != nil {
+		sets = append(sets, fmt.Sprintf("\n\t'%s', $%d", ControllerColumnName, argNum))
+		args = append(args, *dto.Name)
+		argNum++
+	}
+	if dto.PinNumber != nil {
+		sets = append(sets, fmt.Sprintf("\n\t'%s', to_jsonb($%d)", ControllerColumnPinNumber, argNum))
+		args = append(args, *dto.PinNumber)
+		argNum++
+	}
+	if dto.Type != nil {
+		sets = append(sets, fmt.Sprintf("\n\t'%s', $%d", ControllerColumnType, argNum))
+		args = append(args, *dto.Type)
+		argNum++
+	}
+	if dto.Status != nil {
+		sets = append(sets, fmt.Sprintf("\n\t'%s', to_jsonb($%d)", BinaryControllerColumnStatus, argNum))
+		args = append(args, *dto.Status)
+		argNum++
+	}
+	if dto.Value != nil {
+		sets = append(sets, fmt.Sprintf("\n\t'%s', to_jsonb($%d)", SensorControllerColumnValue, argNum))
+		args = append(args, *dto.Value)
+		argNum++
+	}
+	if dto.Unit != nil {
+		sets = append(sets, fmt.Sprintf("\n\t'%s', to_jsonb($%d)", SensorControllerColumnUnit, argNum))
+		args = append(args, *dto.Unit)
+		argNum++
+	}
+	sets = append(sets, fmt.Sprintf("\n\t'%s', to_jsonb(NOW())", ControllerColumnUpdated))
+	args = append(args, boardID)
+	return sets, args, argNum
+}
+
+func (db *DataBase) GetQueryToUpdateConroller(sets []string, args []any, argNum int, binary, sensor bool) string {
+	str := ""
+	if binary {
+		str = "binary"
+	}
+	if sensor {
+		str = "sensor"
+	}
+	beginStr := fmt.Sprintf(`
+		UPDATE boards b
+		SET controllers = jsonb_set(
+		controllers,
+		'{devices,%s}',
+		 coalesce((
+	   select jsonb_agg(
+	   case
+	   	when elem->>'controller_id' = $1
+		then elem||jsonb_build_object(`, str)
+
+	endStr := fmt.Sprintf(`
+				)
+			else elem
+	   		end)
+	   		from jsonb_array_elements(b.controllers->'devices'->'%s') elem
+	   		), '[]'::jsonb)
+		)
+	WHERE board_id = $%d;`, str, argNum)
+	query := beginStr + strings.Join(sets, ",") + endStr
+	return query
+
+}
+
+// func (db *DataBase) UpdateControllerData(ctx context.Context, boardID string, dto *dto.ControllerUpdateDTO) ([]byte, int, error) {
+// 	sets, args, argnum := db.GetJSONBuilderArgs(boardID, dto)
+// 	queryBinary := db.GetQueryToUpdateConroller(sets, args, argnum, true, false)
+// 	querySensor := db.GetQueryToUpdateConroller(sets, args, argnum, false, true)
+// }
 
 func (db *DataBase) Close() {
 	db.db.Close()
