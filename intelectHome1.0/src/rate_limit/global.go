@@ -65,19 +65,15 @@ func (rl *GlobalRateLimiter) StopRefillToken(isAttacked bool) {
 func (rl *GlobalRateLimiter) Allow() bool {
 	fmt.Println(rl.attacked.Load())
 	if rl.attacked.Load() {
-		fmt.Println(1)
 		return false
 	}
 	if rl.stopped.Load() {
-		fmt.Println(2)
 		return true
 	}
 	if tokens := rl.tokenBucket.Load(); tokens > 0 {
-		fmt.Println(3)
 		rl.tokenBucket.Add(-1)
 		return true
 	}
-	fmt.Println(4)
 	return false
 }
 

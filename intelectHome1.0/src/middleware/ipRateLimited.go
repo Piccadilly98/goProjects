@@ -36,6 +36,11 @@ func IpRateLimiter(ipRate *rate_limit.IpRateLimiter, stor *storage.Storage) func
 				errors = err.Error()
 				return
 			}
+			if strings.Contains(host, "::1") {
+				deferNeed = false
+				next.ServeHTTP(w, r)
+				return
+			}
 			if !ipRate.Allow(host) {
 				httpCode = http.StatusTooManyRequests
 				errors = "many requests in ip: " + host + " rejected in ipRateLimited"

@@ -12,6 +12,7 @@ var (
 
 type IpRateLimiter struct {
 	storage              map[string]*ipTokensBucket
+	storageBL            map[string]int
 	countIpAddres        int64
 	isStoped             bool
 	isAttacked           bool

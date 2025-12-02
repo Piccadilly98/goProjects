@@ -53,21 +53,21 @@ func (a *AdminControlGlobalRl) ControlRlHandler(w http.ResponseWriter, r *http.R
 	}()
 	param := chi.URLParam(r, "action")
 	if param == actionStop {
-		fmt.Println("stop")
+		// fmt.Println("stop")
 		a.globalRl.StopRefillToken(false)
 		response := `{"success": "true"}`
 		attentions = append(attentions, "GLOBAL RL IS STOPED!!")
 		w.Write([]byte(response))
 		return
 	} else if param == actionStopAttacked {
-		fmt.Println("attacked")
+		// fmt.Println("attacked")
 		a.globalRl.StopRefillToken(true)
 		response := `{"success": "true"}`
 		attentions = append(attentions, "GLOBAL RL IS STOPED-ATTACKED!!")
 		w.Write([]byte(response))
 		return
 	} else if param == actionRestart {
-		fmt.Println("restart")
+		// fmt.Println("restart")
 		if a.globalRl.GetAttackedStatus() {
 			key := r.Header.Get("key")
 			if key != os.Getenv("GLOBAL_RL_RESTART") {
@@ -144,7 +144,7 @@ func (a *AdminControlGlobalRl) ControlRlHandler(w http.ResponseWriter, r *http.R
 		return
 
 	} else {
-		fmt.Println("hz")
+		// fmt.Println("hz")
 		httpCode = http.StatusBadRequest
 		errors = "Invalid action"
 		w.WriteHeader(httpCode)
