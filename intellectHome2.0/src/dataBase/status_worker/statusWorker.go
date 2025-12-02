@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	database "github.com/Piccadilly98/goProjects/intelectHome2.0/src/dataBase"
+	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/dataBase"
 )
 
 const (

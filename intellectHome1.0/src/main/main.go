@@ -6,18 +6,18 @@ import (
 	"os"
 	"time"
 
-	"github.com/Piccadilly98/goProjects/intelectHome/src/auth"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/handlers"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/middleware"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/rate_limit"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/auth"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/handlers"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/middleware"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/rate_limit"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 )
 
 func main() {
 	url := ":8080"
-	godotenv.Load("/Users/flowerma/Desktop/goProjects/intelectHome/.env")
+	godotenv.Load("/Users/flowerma/Desktop/goProjects/intellectHome1.0/.env")
 	r := chi.NewRouter()
 	st := storage.MakeStorage("ADMIN", "ESP32_1", "ESP32_2")
 	sm := auth.MakeSessionManager()

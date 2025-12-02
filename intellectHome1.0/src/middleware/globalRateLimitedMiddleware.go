@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Piccadilly98/goProjects/intelectHome/src/rate_limit"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/rate_limit"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/storage"
 )
 
 func GlobalRateLimiterToMiddleware(rl *rate_limit.GlobalRateLimiter, stor *storage.Storage) func(http.Handler) http.Handler {

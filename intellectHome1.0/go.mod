@@ -1,4 +1,4 @@
-module github.com/Piccadilly98/goProjects/intelectHome
+module github.com/Piccadilly98/goProjects/intellectHome1.0
 
 go 1.24.5
 

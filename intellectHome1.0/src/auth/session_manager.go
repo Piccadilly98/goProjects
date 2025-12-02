@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/models"
 )
 
 type SessionManager struct {

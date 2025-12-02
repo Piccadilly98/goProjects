@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
-	database "github.com/Piccadilly98/goProjects/intelectHome2.0/src/dataBase"
-	"github.com/Piccadilly98/goProjects/intelectHome2.0/src/dataBase/status_worker"
-	"github.com/Piccadilly98/goProjects/intelectHome2.0/src/handlers"
+	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/dataBase"
+	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/dataBase/status_worker"
+	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/handlers"
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"

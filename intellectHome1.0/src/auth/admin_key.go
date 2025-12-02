@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/storage"
 )
 
 func PrintAdminKey(url string, tw *TokenWorker, sm *SessionManager, stor *storage.Storage) string {

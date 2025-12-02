@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/Piccadilly98/goProjects/intelectHome/src/auth"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/auth"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/models"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/storage"
 )
 
 type QuickAdmin struct {

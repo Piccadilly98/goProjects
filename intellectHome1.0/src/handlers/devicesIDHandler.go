@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/models"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/storage"
 	"github.com/go-chi/chi/v5"
 )
 

@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	dto "github.com/Piccadilly98/goProjects/intelectHome2.0/src/DTO"
+	dto "github.com/Piccadilly98/goProjects/intellectHome2.0/src/DTO"
 )
 
 const (

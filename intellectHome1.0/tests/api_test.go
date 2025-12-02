@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Piccadilly98/goProjects/intelectHome/src/auth"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/handlers"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/middleware"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/models"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/rate_limit"
-	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/auth"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/handlers"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/middleware"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/models"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/rate_limit"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 )
@@ -132,7 +132,7 @@ type ServerSettings struct {
 }
 
 func initTests(globalRL bool, ipRl bool) *ServerSettings {
-	err := godotenv.Load("/Users/flowerma/Desktop/goProjects/intelectHome/.env")
+	err := godotenv.Load("/Users/flowerma/Desktop/goProjects/intellectHome1.0/.env")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -2158,7 +2158,7 @@ func TestIpRateLimited(t *testing.T) {
 					},
 				},
 				{
-					ip: "[:::1]:1234",
+					ip: "192.168.0.2:1234",
 					behavior: map[string]int{
 						"/boards/esp32_1": 10,
 						"/boards":         5,

@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	database "github.com/Piccadilly98/goProjects/intelectHome2.0/src/dataBase"
+	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/dataBase"
 )
 
 func ProcessingURLParam(w http.ResponseWriter, r *http.Request, param string, db *database.DataBase) bool {

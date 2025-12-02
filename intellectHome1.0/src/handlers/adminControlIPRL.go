@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/Piccadilly98/goProjects/intelectHome/src/storage"
+	"github.com/Piccadilly98/goProjects/intellectHome1.0/src/storage"
 )
 
 type AdminControlIPRl struct {

@@ -1,7 +1,0 @@
-Plan intelectHome:
-    -Add new rateLimitedRole
-    -Add https cert
-    -Add test rate limitesr
-    -Add metrics rate limiters
-    -Add new Endpoints /session for control sessions, add to BL, statustics
-    -Add admin panel for check all info api(status rateLimited, statistics...)
