@@ -4,13 +4,17 @@ import (
 	"time"
 )
 
+const (
+	typeBinary = "binary"
+	typeSensor = "sensor"
+)
+
 type ControllerUpdateDTO struct {
 	//
-	ControllerID string  `json:"controller_id"`
-	Name         *string `json:"name"`
-	PinNumber    *int    `json:"pin_number"`
-	Type         *string `json:"type"`
-	UpdatedDate  time.Time
+	Name        *string `json:"name"`
+	PinNumber   *int    `json:"pin_number"`
+	Type        *string `json:"type"`
+	UpdatedDate time.Time
 
 	//binary
 	Status *bool `json:"status"`
@@ -20,12 +24,12 @@ type ControllerUpdateDTO struct {
 	Unit  *string `json:"unit"`
 }
 
-func (cu *ControllerUpdateDTO) Validate() bool {
-	if cu.ControllerID == "" {
+func (cu *ControllerUpdateDTO) ValidateWithType(controllerType string) bool {
+
+	if controllerType == typeBinary && (cu.Value != nil || cu.Unit != nil) {
 		return false
 	}
-
-	if cu.Status != nil && (cu.Value != nil || cu.Unit != nil) {
+	if controllerType == typeSensor && cu.Status != nil {
 		return false
 	}
 

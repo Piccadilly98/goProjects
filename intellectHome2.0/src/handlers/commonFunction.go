@@ -8,8 +8,17 @@ import (
 	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/dataBase"
 )
 
+func ValidateURLParam(param ...string) bool {
+	for _, v := range param {
+		if v == "" {
+			return false
+		}
+	}
+	return true
+}
+
 func ProcessingURLParam(w http.ResponseWriter, r *http.Request, param string, db *database.DataBase) bool {
-	if param == "" {
+	if !ValidateURLParam(param) {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(`{"status":"error", "text":"invalid board_id"}`))
 		return false
@@ -33,26 +42,32 @@ func ProcessingURLParam(w http.ResponseWriter, r *http.Request, param string, db
 	return true
 }
 
-func PorcessingURLParamControllerID(w http.ResponseWriter, r *http.Request, param string, db *database.DataBase) bool {
-	if param == "" {
-		w.WriteHeader(http.StatusNotFound)
-		return false
+func ProccesingControllerIDGetType(w http.ResponseWriter, r *http.Request, conrollerID, boardID string, db *database.DataBase) (string, bool) {
+	if !ValidateURLParam(conrollerID) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"status":"error", "text":"invalid board_id"}`))
+		return "", false
 	}
-
-	exist, code, err := db.GetExistWithDeviceId(r.Context(), param)
+	controllerType, boardIDRes, code, err := db.GetControllerTypeAndBoardID(r.Context(), conrollerID)
 	if err != nil {
 		if code == 0 {
-			return false
+			return "", false
+		}
+		if code == http.StatusBadRequest {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("404 page not found"))
+			return "", false
 		}
 		w.WriteHeader(code)
-		errResponse := fmt.Sprintf(`{"status":"error", "text":"%s"}`, err.Error())
-		w.Write([]byte(errResponse))
-		return false
+		str := fmt.Sprintf(`{"status":"error", "%s"}`, err.Error())
+		w.Write([]byte(str))
+		return "", false
 	}
-	if !exist {
+	if boardID != boardIDRes {
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte("404 page not found"))
-		return false
+		return "", false
 	}
-	return true
+
+	return controllerType, true
 }

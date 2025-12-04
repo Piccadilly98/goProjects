@@ -150,7 +150,7 @@ func (db *DataBase) GetExistWithBoardId(ctx context.Context, id string) (bool, i
 	return exist, http.StatusOK, nil
 }
 
-func (db *DataBase) GetExistWithDeviceId(ctx context.Context, deviceId string) (bool, int, error) {
+func (db *DataBase) GetExistWithControllerId(ctx context.Context, deviceId string) (bool, int, error) {
 	var exist bool
 	if !db.IsConnect() {
 		return false, http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
@@ -426,39 +426,40 @@ func (db *DataBase) GetControllersByte(ctx context.Context, id string) ([]byte, 
 	return res, http.StatusOK, nil
 }
 
-func (db *DataBase) GetJSONBuilderArgs(boardID string, dto *dto.ControllerUpdateDTO) ([]string, []any, int) {
+// CONTROLLER UPDATE
+func (db *DataBase) GetJSONBuilderArgs(boardID string, dto *dto.ControllerUpdateDTO, controllerID string) ([]string, []any, int) {
 	var sets []string
 	var args []any
 
 	argNum := 2
-	args = append(args, dto.ControllerID)
+	args = append(args, controllerID)
 	if dto.Name != nil {
-		sets = append(sets, fmt.Sprintf("\n\t'%s', $%d", ControllerColumnName, argNum))
+		sets = append(sets, fmt.Sprintf("\n\t'%s', $%d::text", ControllerColumnName, argNum))
 		args = append(args, *dto.Name)
 		argNum++
 	}
 	if dto.PinNumber != nil {
-		sets = append(sets, fmt.Sprintf("\n\t'%s', to_jsonb($%d)", ControllerColumnPinNumber, argNum))
+		sets = append(sets, fmt.Sprintf("\n\t'%s', $%d::integer", ControllerColumnPinNumber, argNum))
 		args = append(args, *dto.PinNumber)
 		argNum++
 	}
 	if dto.Type != nil {
-		sets = append(sets, fmt.Sprintf("\n\t'%s', $%d", ControllerColumnType, argNum))
+		sets = append(sets, fmt.Sprintf("\n\t'%s', $%d::text", ControllerColumnType, argNum))
 		args = append(args, *dto.Type)
 		argNum++
 	}
 	if dto.Status != nil {
-		sets = append(sets, fmt.Sprintf("\n\t'%s', to_jsonb($%d)", BinaryControllerColumnStatus, argNum))
+		sets = append(sets, fmt.Sprintf("\n\t'%s', $%d::boolean", BinaryControllerColumnStatus, argNum))
 		args = append(args, *dto.Status)
 		argNum++
 	}
 	if dto.Value != nil {
-		sets = append(sets, fmt.Sprintf("\n\t'%s', to_jsonb($%d)", SensorControllerColumnValue, argNum))
+		sets = append(sets, fmt.Sprintf("\n\t'%s', $%d::integer", SensorControllerColumnValue, argNum))
 		args = append(args, *dto.Value)
 		argNum++
 	}
 	if dto.Unit != nil {
-		sets = append(sets, fmt.Sprintf("\n\t'%s', to_jsonb($%d)", SensorControllerColumnUnit, argNum))
+		sets = append(sets, fmt.Sprintf("\n\t'%s', $%d::text", SensorControllerColumnUnit, argNum))
 		args = append(args, *dto.Unit)
 		argNum++
 	}
@@ -467,14 +468,7 @@ func (db *DataBase) GetJSONBuilderArgs(boardID string, dto *dto.ControllerUpdate
 	return sets, args, argNum
 }
 
-func (db *DataBase) GetQueryToUpdateConroller(sets []string, args []any, argNum int, binary, sensor bool) string {
-	str := ""
-	if binary {
-		str = "binary"
-	}
-	if sensor {
-		str = "sensor"
-	}
+func (db *DataBase) GetQueryToUpdateConroller(sets []string, args []any, argNum int, controllerType string) string {
 	beginStr := fmt.Sprintf(`
 		UPDATE boards b
 		SET controllers = jsonb_set(
@@ -484,7 +478,7 @@ func (db *DataBase) GetQueryToUpdateConroller(sets []string, args []any, argNum 
 	   select jsonb_agg(
 	   case
 	   	when elem->>'controller_id' = $1
-		then elem||jsonb_build_object(`, str)
+		then elem||jsonb_build_object(`, controllerType)
 
 	endStr := fmt.Sprintf(`
 				)
@@ -493,17 +487,71 @@ func (db *DataBase) GetQueryToUpdateConroller(sets []string, args []any, argNum 
 	   		from jsonb_array_elements(b.controllers->'devices'->'%s') elem
 	   		), '[]'::jsonb)
 		)
-	WHERE board_id = $%d;`, str, argNum)
+	WHERE board_id = $%d;`, controllerType, argNum)
 	query := beginStr + strings.Join(sets, ",") + endStr
 	return query
 
 }
 
-// func (db *DataBase) UpdateControllerData(ctx context.Context, boardID string, dto *dto.ControllerUpdateDTO) ([]byte, int, error) {
-// 	sets, args, argnum := db.GetJSONBuilderArgs(boardID, dto)
-// 	queryBinary := db.GetQueryToUpdateConroller(sets, args, argnum, true, false)
-// 	querySensor := db.GetQueryToUpdateConroller(sets, args, argnum, false, true)
-// }
+func (db *DataBase) UpdateControllerData(ctx context.Context, boardID string, dto *dto.ControllerUpdateDTO, controllerType string, controllerID string) ([]byte, int, error) {
+	if !db.IsConnect() {
+		return nil, http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
+	}
+
+	sets, args, argNum := db.GetJSONBuilderArgs(boardID, dto, controllerID)
+	query := db.GetQueryToUpdateConroller(sets, args, argNum, controllerType)
+	if !db.IsConnect() {
+		return nil, http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
+	}
+	_, err := db.GetPointer().ExecContext(ctx, query, args...)
+	if err != nil {
+		code, err := db.processingError(err)
+		return nil, code, err
+	}
+	return db.GetControllersInfoWithType(ctx, boardID, controllerType, controllerID)
+}
+
+func (db *DataBase) GetControllersInfoWithType(ctx context.Context, boardID string, controllerType string, controllerID string) ([]byte, int, error) {
+	if !db.IsConnect() {
+		return nil, http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
+	}
+	var b []byte
+	err := db.GetPointer().QueryRowContext(ctx, `
+	SELECT elem FROM boards, jsonb_array_elements(controllers->'devices'->$1) elem
+	WHERE board_id = $2 AND elem->>'controller_id' = $3`, controllerType, boardID, controllerID).Scan(&b)
+	if err != nil {
+		code, err := db.processingError(err)
+		return nil, code, err
+	}
+	return b, http.StatusOK, nil
+}
+
+func (db *DataBase) GetControllerTypeAndBoardID(ctx context.Context, controllerID string) (string, string, int, error) {
+	var controllerType *string
+	var boardID *string
+	if !db.IsConnect() {
+		return "", "", http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
+	}
+
+	err := db.GetPointer().QueryRowContext(ctx, `
+	SELECT board_id, 'binary' AS device_type FROM boards, jsonb_array_elements(controllers->'devices'->'binary') elem
+	WHERE elem->>'controller_id' = $1
+
+	UNION ALL
+
+	SELECT board_id, 'sensor' AS device_type FROM boards, jsonb_array_elements(controllers->'devices'->'sensor') elem
+	WHERE elem->>'controller_id' = $1;
+	`, controllerID).Scan(&boardID, &controllerType)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", "", http.StatusBadRequest, fmt.Errorf("invalid body")
+		}
+		code, err := db.processingError(err)
+		return "", "", code, err
+	}
+	return *controllerType, *boardID, http.StatusOK, nil
+}
 
 func (db *DataBase) Close() {
 	db.db.Close()

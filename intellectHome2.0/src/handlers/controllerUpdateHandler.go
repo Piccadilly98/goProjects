@@ -25,7 +25,8 @@ func (cu *controllerUpdateHandler) Handler(w http.ResponseWriter, r *http.Reques
 	if !ProcessingURLParam(w, r, boardID, cu.db) {
 		return
 	}
-	if !PorcessingURLParamControllerID(w, r, controllerID, cu.db) {
+	controllerType, ok := ProccesingControllerIDGetType(w, r, controllerID, boardID, cu.db)
+	if !ok {
 		return
 	}
 
@@ -36,14 +37,22 @@ func (cu *controllerUpdateHandler) Handler(w http.ResponseWriter, r *http.Reques
 		w.Write([]byte(err.Error()))
 		return
 	}
-	if !dto.Validate() {
+	if !dto.ValidateWithType(controllerType) {
 		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"status":"error", "text":"invalid body"}`))
 		return
 	}
 
-	sets, args, argnum := cu.db.GetJSONBuilderArgs(boardID, dto)
-	queryBinary := cu.db.GetQueryToUpdateConroller(sets, args, argnum, true, false)
-	querySensor := cu.db.GetQueryToUpdateConroller(sets, args, argnum, false, true)
-	fmt.Println(queryBinary, args)
-	w.Write([]byte(querySensor))
+	b, code, err := cu.db.UpdateControllerData(r.Context(), boardID, dto, controllerType, controllerID)
+	if err != nil {
+		if code == 0 {
+			return
+		}
+		w.WriteHeader(code)
+		errResponse := fmt.Sprintf(`{"status":"error", "text":"%s"}`, err.Error())
+		w.Write([]byte(errResponse))
+		return
+	}
+	w.Write(b)
+
 }

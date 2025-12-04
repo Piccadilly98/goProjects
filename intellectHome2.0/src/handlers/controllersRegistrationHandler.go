@@ -70,7 +70,7 @@ func (cr *controllersRegistrationHandler) readBodyAndGetDTO(w http.ResponseWrite
 }
 
 func (cr *controllersRegistrationHandler) processingDTOandGetJson(w http.ResponseWriter, r *http.Request, dto *dto.RegistrationController) (bool, bool, bool, []byte) {
-	exist, code, err := cr.db.GetExistWithDeviceId(r.Context(), dto.ControllerID)
+	exist, code, err := cr.db.GetExistWithControllerId(r.Context(), dto.ControllerID)
 	var sensor, binary bool
 	if err != nil {
 		if code == 0 {
