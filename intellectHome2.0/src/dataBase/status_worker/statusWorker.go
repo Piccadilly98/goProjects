@@ -27,6 +27,7 @@ type StatusWorker struct {
 }
 
 func MakeStatusWorker(db *database.DataBase, intervalInSecond time.Duration, offlineTime time.Duration) *StatusWorker {
+	//сделать размер буфера настраивым
 	ctx, cancel := context.WithCancel(context.Background())
 	return &StatusWorker{
 		db:             db,
@@ -77,6 +78,7 @@ func (sw *StatusWorker) startMarkBoardStateBeforeUpdate() {
 					continue
 				}
 			}
+			//закинуть в отдельный метод в бд
 			_, err := sw.db.GetPointer().Exec(`
 		UPDATE boards b
 		SET board_state = $1, updated_date = NOW()
@@ -111,6 +113,7 @@ func (sw *StatusWorker) UpdateStatuses() {
 func (sw *StatusWorker) proccesingStatusLost() {
 	intervalStr := fmt.Sprintf("%d seconds", int(sw.intervalUpdate.Seconds()))
 	offlineTime := fmt.Sprintf("%d seconds", int(sw.offlineTime.Seconds()))
+	//закинуть в отдельный метод в бд
 	res, err := sw.db.GetPointer().Exec(
 		`UPDATE boards b
 		SET board_state = $1, updated_date = NOW()
@@ -143,6 +146,7 @@ func (sw *StatusWorker) proccesingStatusLost() {
 
 func (sw *StatusWorker) proccesingStatusOffline() {
 	offlineTime := fmt.Sprintf("%d seconds", int(sw.offlineTime.Seconds()))
+	//закинуть в отдельный метод в бд
 	res, err := sw.db.GetPointer().Exec(`
 	UPDATE boards b
 		SET board_state = $1, updated_date = NOW()

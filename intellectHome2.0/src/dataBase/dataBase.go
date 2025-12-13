@@ -1,5 +1,7 @@
 package database
 
+// сделать в бд чек статусов: registred or active or offline
+// сделать выдачу id, что бы это не было кастомным полем
 import (
 	"context"
 	"database/sql"
@@ -25,13 +27,14 @@ const (
 	ControllerColumnType         = "type"
 	ControllerColumnCreated      = "created_date"
 	ControllerColumnUpdated      = "updated_date"
-	BinaryControllerColumnStatus = "status"
 	ControllerColumnPinNumber    = "pin_number"
+	BinaryControllerColumnStatus = "status"
 
 	SensorControllerColumnUnit  = "unit"
 	SensorControllerColumnValue = "value"
 )
 
+// сделать кэш в in memory мапе с board_id
 type DataBase struct {
 	host      string
 	port      string
@@ -62,9 +65,18 @@ func MakeDataBase(host string, port string, username string, nameDb string, pass
 	return res, nil
 }
 
+// вынести в отдельную сущность error worker
+// по возможности убрать что бы бд возвращал код, нужно возвращать ошибку и какую нибудь false/true
+// cancel context
+// решить проблему с ошибками: неверный запрос даёт нам всегда 500, это не правильно
+
 func (db *DataBase) processingError(err error) (int, error) {
-	if errors.Is(err, context.Canceled) {
-		return 0, err
+	if strings.Contains(err.Error(), "canceling statement due to user request") ||
+		strings.Contains(err.Error(), "context deadline exceeded") || errors.Is(err, context.Canceled) {
+		return 0, context.Canceled
+	}
+	if strings.Contains(err.Error(), "duplicate") {
+		return http.StatusBadRequest, err
 	}
 	if strings.Contains(err.Error(), "connection refused") || strings.Contains(err.Error(), "many clients") ||
 		strings.Contains(err.Error(), "bad connection") {
@@ -206,6 +218,8 @@ func (db *DataBase) RegistrationController(ctx context.Context, json []byte, boa
 	}
 	return http.StatusCreated, nil
 }
+
+// нейминг говна кусок
 func (db *DataBase) GetDtoWithId(ctx context.Context, id string) (*dto.GetBoardDataDto, int, error) {
 	if !db.isConnect.Load() {
 		return nil, http.StatusServiceUnavailable, fmt.Errorf("fail connection db")
@@ -222,6 +236,7 @@ func (db *DataBase) GetDtoWithId(ctx context.Context, id string) (*dto.GetBoardD
 	return &dto, http.StatusOK, nil
 }
 
+// нейминг говна кусок
 func (db *DataBase) GetInfoDtoWithId(ctx context.Context, id string) (*dto.GetBoardInfoDTO, int, error) {
 	dto := &dto.GetBoardInfoDTO{}
 	if !db.isConnect.Load() {
@@ -268,7 +283,8 @@ func (db *DataBase) RegistrationBoard(ctx context.Context, id *string, name *str
 	return http.StatusCreated, nil
 }
 
-func (db *DataBase) UpdateBoard(ctx context.Context, boardID string, dto *dto.UpdateBoardDto) (int, error) {
+// постараться разделить метод на 2
+func (db *DataBase) UpdateBoard(ctx context.Context, boardID string, dto *dto.UpdateBoardDataDto) (int, error) {
 	if !db.isConnect.Load() {
 		return http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
 	}
@@ -411,6 +427,7 @@ func (db *DataBase) GetAllBoardsWithConditions(ctx context.Context, state string
 	return res, http.StatusOK, nil
 }
 
+// чуть понятнее нейминг
 func (db *DataBase) GetControllersByte(ctx context.Context, id string) ([]byte, int, error) {
 	if !db.IsConnect() {
 		return nil, http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
@@ -511,6 +528,8 @@ func (db *DataBase) UpdateControllerData(ctx context.Context, boardID string, dt
 	return db.GetControllersInfoWithType(ctx, boardID, controllerType, controllerID)
 }
 
+// зачем нам здесь боард айди
+// переделать
 func (db *DataBase) GetControllersInfoWithType(ctx context.Context, boardID string, controllerType string, controllerID string) ([]byte, int, error) {
 	if !db.IsConnect() {
 		return nil, http.StatusServiceUnavailable, fmt.Errorf("data base not ready")
@@ -520,12 +539,16 @@ func (db *DataBase) GetControllersInfoWithType(ctx context.Context, boardID stri
 	SELECT elem FROM boards, jsonb_array_elements(controllers->'devices'->$1) elem
 	WHERE board_id = $2 AND elem->>'controller_id' = $3`, controllerType, boardID, controllerID).Scan(&b)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, http.StatusBadRequest, fmt.Errorf("invalid body")
+		}
 		code, err := db.processingError(err)
 		return nil, code, err
 	}
 	return b, http.StatusOK, nil
 }
 
+// закинуть в метод выше
 func (db *DataBase) GetControllerTypeAndBoardID(ctx context.Context, controllerID string) (string, string, int, error) {
 	var controllerType *string
 	var boardID *string
@@ -553,8 +576,9 @@ func (db *DataBase) GetControllerTypeAndBoardID(ctx context.Context, controllerI
 	return *controllerType, *boardID, http.StatusOK, nil
 }
 
-func (db *DataBase) Close() {
-	db.db.Close()
+func (db *DataBase) Close() error {
+	err := db.db.Close()
+	return err
 }
 
 func (db *DataBase) GetPointer() *sql.DB {

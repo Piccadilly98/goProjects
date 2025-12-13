@@ -31,7 +31,7 @@ func (bu *boardUpdate) Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	update := &dto.UpdateBoardDto{}
+	update := &dto.UpdateBoardDataDto{}
 	if !bu.readBodyWriteHeader(w, r, update) {
 		return
 	}
@@ -50,7 +50,7 @@ func (bu *boardUpdate) Handler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"ok"}`))
 }
 
-func (bu *boardUpdate) readBodyWriteHeader(w http.ResponseWriter, r *http.Request, update *dto.UpdateBoardDto) bool {
+func (bu *boardUpdate) readBodyWriteHeader(w http.ResponseWriter, r *http.Request, update *dto.UpdateBoardDataDto) bool {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Println(err.Error())

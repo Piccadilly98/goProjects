@@ -4,15 +4,17 @@ import (
 	"log"
 )
 
-type errorWorker struct {
+type ErrorWorker struct {
 	db *DataBase
 }
 
-func MakeErrorWorker(db *DataBase) *errorWorker {
-	return &errorWorker{db: db}
+// всю логику сюда
+
+func MakeErrorWorker(db *DataBase) *ErrorWorker {
+	return &ErrorWorker{db: db}
 }
 
-func (ew *errorWorker) Start() {
+func (ew *ErrorWorker) Start() {
 	go func() {
 		for err := range ew.db.ErrChan() {
 			log.Printf("DB error detected: %v → starting recovery", err)
