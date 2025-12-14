@@ -121,6 +121,11 @@ func TestExistBoardIDControllerID(t *testing.T) {
 			BoardID: "`'DROP TABLE boards;'`",
 			Expect:  false,
 		},
+		{
+			Name:    "BoardID: invalid_test_13",
+			BoardID: "''`a",
+			Expect:  false,
+		},
 	}
 
 	testCasesControllers := []TestCaseExistControllerID{

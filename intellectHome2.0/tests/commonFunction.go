@@ -7,3 +7,7 @@ func GetPtrStr(str string) *string {
 func GetPtrBool(b bool) *bool {
 	return &b
 }
+
+func GetPtrInt(i int) *int {
+	return &i
+}
