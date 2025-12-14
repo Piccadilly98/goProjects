@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	dto "github.com/Piccadilly98/goProjects/intellectHome2.0/src/DTO"
-	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/dataBase"
+	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/storage/dataBase"
 )
 
 type boardRegistration struct {
