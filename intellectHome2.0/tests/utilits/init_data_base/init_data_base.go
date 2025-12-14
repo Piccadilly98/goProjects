@@ -1,7 +1,7 @@
 package init_data_base
 
 import (
-	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/dataBase"
+	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/storage/dataBase"
 )
 
 func InitDataBase(db *database.DataBase) error {

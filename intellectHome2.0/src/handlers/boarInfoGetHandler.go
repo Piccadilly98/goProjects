@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/dataBase"
+	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/storage/dataBase"
 	"github.com/go-chi/chi/v5"
 )
 

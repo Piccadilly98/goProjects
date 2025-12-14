@@ -1,6 +1,6 @@
 package data_base_methods
 
-import database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/dataBase"
+import database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/storage/dataBase"
 
 func CheckExistBoardInfo(db *database.DataBase, boardID string) (bool, error) {
 	var exist bool
