@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/core/events"
 	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/handlers"
 	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/storage/dataBase"
 	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/storage/status_worker"
@@ -15,22 +16,27 @@ import (
 )
 
 type Server struct {
-	Db              *database.DataBase
-	StatusWorker    *status_worker.StatusWorker
-	ErrorWorker     *database.ErrorWorker
-	R               *chi.Mux
-	UpdateChan      chan string
-	Wg              sync.WaitGroup
-	ErrorServerChan chan error
+	Db           *database.DataBase
+	StatusWorker *status_worker.StatusWorker
+	ErrorWorker  *database.ErrorWorker
+	R            *chi.Mux
+	Wg           sync.WaitGroup
+	EventBus     *events.EventBus
 }
 
-func NewServer(testing bool, intervalUpdateStatus time.Duration, timeForStatusOffline time.Duration, workers bool) (*Server, error) {
+func NewServer(testing bool,
+	intervalUpdateStatus time.Duration,
+	timeForStatusOffline time.Duration,
+	workers bool,
+	bufferSize int,
+	intervarCheckQueue time.Duration,
+) (*Server, error) {
+
 	err := loadConfig("/Users/flowerma/Desktop/goProjects/intellectHome2.0/src/main/.env")
 	if err != nil {
 		return nil, err
 	}
 	serv := &Server{}
-	serv.ErrorServerChan = make(chan error)
 	serv.R = chi.NewMux()
 	var db *database.DataBase
 	if !testing {
@@ -44,14 +50,17 @@ func NewServer(testing bool, intervalUpdateStatus time.Duration, timeForStatusOf
 			return nil, err
 		}
 	}
+	if !testing {
+		serv.EventBus = events.NewEventBus(bufferSize, intervalUpdateStatus)
+	}
+
 	serv.Db = db
 	serv.ErrorWorker = database.MakeErrorWorker(serv.Db)
-	serv.StatusWorker = status_worker.MakeStatusWorker(serv.Db, intervalUpdateStatus, timeForStatusOffline)
+	serv.StatusWorker = status_worker.MakeStatusWorker(serv.Db, intervalUpdateStatus, timeForStatusOffline, serv.EventBus)
 	if workers {
 		serv.ErrorWorker.Start()
 		serv.StatusWorker.Start()
 	}
-	serv.UpdateChan = serv.StatusWorker.UpdateChan()
 	registration := handlers.MakeRegistrationHandler(db)
 	update := handlers.MakeBoardUpdateHandler(db)
 	get := handlers.MakeBoardIDGet(db)

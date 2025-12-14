@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/core/events"
 	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/storage/dataBase"
 )
 
@@ -14,6 +15,7 @@ const (
 	StatusActive    = "active"
 	StatusLost      = "lost"
 	StatusNotActive = "offline"
+	NamePublisher   = "status_worker"
 )
 
 type StatusWorker struct {
@@ -22,11 +24,11 @@ type StatusWorker struct {
 	offlineTime    time.Duration
 	ctx            context.Context
 	cancel         context.CancelFunc
-	updateChan     chan string
+	EventBus       *events.EventBus
 	errChan        chan error
 }
 
-func MakeStatusWorker(db *database.DataBase, intervalInSecond time.Duration, offlineTime time.Duration) *StatusWorker {
+func MakeStatusWorker(db *database.DataBase, intervalInSecond time.Duration, offlineTime time.Duration, EventBus *events.EventBus) *StatusWorker {
 	//сделать размер буфера настраивым
 	ctx, cancel := context.WithCancel(context.Background())
 	return &StatusWorker{
@@ -35,13 +37,15 @@ func MakeStatusWorker(db *database.DataBase, intervalInSecond time.Duration, off
 		offlineTime:    offlineTime,
 		ctx:            ctx,
 		cancel:         cancel,
-		updateChan:     make(chan string, 50),
+		EventBus:       EventBus,
 		errChan:        db.ErrChan(),
 	}
 }
 
 func (sw *StatusWorker) Start() {
-	go sw.startMarkBoardStateBeforeUpdate()
+	subBoardUploadInfo := sw.EventBus.Subscribe(events.TopicBoardUploadInfo, NamePublisher)
+	subBoardChangeStatus := sw.EventBus.Subscribe(events.TopicBoardsEventStatus, NamePublisher)
+	go sw.startMarkBoardStateBeforeUpdate(subBoardUploadInfo, subBoardChangeStatus)
 	go func() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
@@ -57,24 +61,17 @@ func (sw *StatusWorker) Start() {
 	}()
 }
 
-func (sw *StatusWorker) ErrrorChan() chan error {
-	return sw.errChan
-}
-
-func (sw *StatusWorker) UpdateChan() chan string {
-	return sw.updateChan
-}
-
-func (sw *StatusWorker) startMarkBoardStateBeforeUpdate() {
+func (sw *StatusWorker) startMarkBoardStateBeforeUpdate(subBoardUploadInfo *events.TopicSubscriberOut, subBoardChangeStatus *events.TopicSubscriberOut) {
 	for {
 		select {
 		case <-sw.ctx.Done():
 			return
-		case id := <-sw.updateChan:
+		case sub := <-subBoardUploadInfo.Chan:
+			log.Printf("Sent event by: %s\n", sub.Publisher)
 			if !sw.db.IsConnect() {
 				time.Sleep(sw.intervalUpdate * 2)
 				if !sw.db.IsConnect() {
-					log.Printf("Status worker: not update status board: %s, DB error\n", id)
+					log.Printf("Status worker: not update status board: %s, from publisher: %s. DB error\n", sub.BoardID, sub.Publisher)
 					continue
 				}
 			}
@@ -85,7 +82,7 @@ func (sw *StatusWorker) startMarkBoardStateBeforeUpdate() {
 		FROM boardInfo bi
 		WHERE b.board_id = $2
 		AND bi.updated_date IS NOT NULL;`,
-				StatusActive, id)
+				StatusActive, sub.BoardID)
 			if err != nil {
 				log.Println(err.Error())
 				select {
@@ -94,7 +91,19 @@ func (sw *StatusWorker) startMarkBoardStateBeforeUpdate() {
 				}
 				continue
 			}
-			log.Printf("set active status in board_id: %s\n", id)
+			log.Printf("set active status in board_id: %s\n", sub.BoardID)
+			err = sw.EventBus.Publish(subBoardChangeStatus.Topic, events.Event{
+				Type:       subBoardChangeStatus.Topic,
+				BoardID:    sub.BoardID,
+				Payload:    fmt.Sprintf("change status to %s after upload", StatusActive),
+				Publisher:  NamePublisher,
+				DatePublic: time.Now(),
+			}, subBoardChangeStatus.ID)
+			if err != nil {
+				log.Printf("Erro in publish statusWorker: %s\n", err.Error())
+			} else {
+				log.Printf("publish event in topic: %s, publisher: %s\n", subBoardChangeStatus.Topic, NamePublisher)
+			}
 		}
 	}
 }

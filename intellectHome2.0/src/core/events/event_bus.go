@@ -39,7 +39,7 @@ func (eb *EventBus) Subscribe(topic, name string) *TopicSubscriberOut {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
 	eb.subscribersID++
-	ch := make(chan Event, 0)
+	ch := make(chan Event, eb.bufferSize)
 	ts := &TopicSubscriberOut{
 		Topic: topic,
 		Chan:  ch,
