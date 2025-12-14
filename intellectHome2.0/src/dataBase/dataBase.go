@@ -189,10 +189,25 @@ func (db *DataBase) GetExistWithControllerId(ctx context.Context, deviceId strin
 	return exist, http.StatusOK, nil
 }
 
-func (db *DataBase) RegistrationController(ctx context.Context, json []byte, boardID string, binary, sensor bool) (int, error) {
+func (db *DataBase) RegistrationController(ctx context.Context, json []byte, boardID string, binary, sensor bool, controllerID string) (int, error) {
 	if !db.IsConnect() {
 		return http.StatusServiceUnavailable, fmt.Errorf("fail connection db")
 	}
+	exist, code, err := db.GetExistWithBoardId(ctx, boardID)
+	if err != nil {
+		return code, err
+	}
+	if !exist {
+		return http.StatusBadRequest, fmt.Errorf("invalid boardID")
+	}
+	exist, code, err = db.GetExistWithControllerId(ctx, controllerID)
+	if err != nil {
+		return code, err
+	}
+	if exist {
+		return http.StatusBadRequest, fmt.Errorf("invalid controllerID")
+	}
+
 	query := ""
 	if binary {
 		query = `UPDATE boards
@@ -211,7 +226,7 @@ func (db *DataBase) RegistrationController(ctx context.Context, json []byte, boa
 	),updated_date = now()
 	WHERE board_id = $2;`
 	}
-	_, err := db.GetPointer().ExecContext(ctx, query, json, boardID)
+	_, err = db.GetPointer().ExecContext(ctx, query, json, boardID)
 	if err != nil {
 		code, err := db.processingError(err)
 		return code, err
@@ -250,6 +265,9 @@ func (db *DataBase) GetInfoDtoWithId(ctx context.Context, id string) (*dto.GetBo
 		&dto.Voltage, &dto.TotalDeviceCount, &dto.MacAddress)
 
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, http.StatusBadRequest, fmt.Errorf("invalid boardID")
+		}
 		code, err := db.processingError(err)
 		return nil, code, err
 	}
@@ -437,6 +455,9 @@ func (db *DataBase) GetControllersByte(ctx context.Context, id string) ([]byte, 
 	SELECT controllers->'devices' FROM boards
 	WHERE board_id = $1`, id).Scan(&res)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, http.StatusBadRequest, fmt.Errorf("invalid controllerID")
+		}
 		code, err := db.processingError(err)
 		return nil, code, err
 	}
@@ -540,7 +561,7 @@ func (db *DataBase) GetControllersInfoWithType(ctx context.Context, boardID stri
 	WHERE board_id = $2 AND elem->>'controller_id' = $3`, controllerType, boardID, controllerID).Scan(&b)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, http.StatusBadRequest, fmt.Errorf("invalid body")
+			return nil, http.StatusBadRequest, fmt.Errorf("invalid controllerID")
 		}
 		code, err := db.processingError(err)
 		return nil, code, err

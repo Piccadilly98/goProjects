@@ -38,7 +38,7 @@ func (cr *controllersRegistrationHandler) Handler(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	code, err := cr.db.RegistrationController(r.Context(), json, boardID, isBinary, isSensor)
+	code, err := cr.db.RegistrationController(r.Context(), json, boardID, isBinary, isSensor, dto.ControllerID)
 	if err != nil {
 		if code == 0 {
 			return

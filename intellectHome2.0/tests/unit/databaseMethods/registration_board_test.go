@@ -11,7 +11,7 @@ import (
 	dto "github.com/Piccadilly98/goProjects/intellectHome2.0/src/DTO"
 	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/server"
 	"github.com/Piccadilly98/goProjects/intellectHome2.0/tests"
-	"github.com/Piccadilly98/goProjects/intellectHome2.0/tests/init_data_base"
+	"github.com/Piccadilly98/goProjects/intellectHome2.0/tests/utilits/init_data_base"
 )
 
 type TestCaseRegistrationBoard struct {

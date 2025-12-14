@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/server"
-	"github.com/Piccadilly98/goProjects/intellectHome2.0/tests/init_data_base"
+	"github.com/Piccadilly98/goProjects/intellectHome2.0/tests/utilits/init_data_base"
 	_ "github.com/lib/pq"
 )
 

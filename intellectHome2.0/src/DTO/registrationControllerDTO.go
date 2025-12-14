@@ -1,6 +1,10 @@
 package dto
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+)
 
 type RegistrationController struct {
 	ControllerType string `json:"controller_type"`
@@ -35,6 +39,9 @@ func (rc *RegistrationController) ToSensorController() *SensorController {
 	if rc.ControllerType != "sensor" {
 		return nil
 	}
+	if rc.Status != nil {
+		return nil
+	}
 
 	sc := &SensorController{}
 	sc.ControllerID = &rc.ControllerID
@@ -52,7 +59,9 @@ func (rc *RegistrationController) ToBinaryController() *BinaryController {
 	if rc.ControllerType != "binary" {
 		return nil
 	}
-
+	if rc.Unit != nil || rc.Value != nil {
+		return nil
+	}
 	bc := &BinaryController{}
 	bc.ControllerID = &rc.ControllerID
 	bc.ControllerType = &rc.Type
@@ -62,4 +71,16 @@ func (rc *RegistrationController) ToBinaryController() *BinaryController {
 	time := time.Now()
 	bc.CreatedDate = &time
 	return bc
+}
+
+func (rc *RegistrationController) GetJson() ([]byte, error) {
+	if rc.ControllerType == typeBinary {
+		data, err := json.Marshal(rc.ToBinaryController())
+		return data, err
+	} else if rc.ControllerType == typeSensor {
+		data, err := json.Marshal(rc.ToSensorController())
+		return data, err
+	}
+
+	return nil, fmt.Errorf("invalid type")
 }

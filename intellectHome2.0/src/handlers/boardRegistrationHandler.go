@@ -21,13 +21,13 @@ func MakeRegistrationHandler(db *database.DataBase) *boardRegistration {
 
 func (br *boardRegistration) RegistrationHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	upload := &dto.UploadBoardDataDto{}
+	upload := &dto.RegistrationBoardDTO{}
 	w.Header().Set("Content-Type", "application/json")
 	if !br.readBodyWriteHeader(w, r, upload) {
 		return
 	}
 
-	code, err := br.db.RegistrationBoard(ctx, upload.BoardId, upload.Name, upload.BoardType, upload.BoardState)
+	code, err := br.db.RegistrationBoard(ctx, &upload.BoardId, upload.Name, upload.BoardType, upload.BoardState)
 	if err != nil {
 		log.Println(err.Error())
 		if code == 0 {
@@ -38,11 +38,29 @@ func (br *boardRegistration) RegistrationHandler(w http.ResponseWriter, r *http.
 		w.Write([]byte(errResponse))
 		return
 	}
-	w.WriteHeader(code)
-	w.Write([]byte(`{"status":"ok"}`))
+	dto, code, err := br.db.GetDtoWithId(r.Context(), upload.BoardId)
+	if err != nil {
+		log.Println(err.Error())
+		if code == 0 {
+			return
+		}
+		w.WriteHeader(code)
+		errResponse := fmt.Sprintf(`{"status":"error", "text":"%s"}`, err.Error())
+		w.Write([]byte(errResponse))
+		return
+	}
+	b, err := json.Marshal(dto)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err.Error())
+		w.Write([]byte(`{"status":"error", "text":"server error"}`))
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	w.Write(b)
 }
 
-func (br *boardRegistration) readBodyWriteHeader(w http.ResponseWriter, r *http.Request, uploadInfo *dto.UploadBoardDataDto) bool {
+func (br *boardRegistration) readBodyWriteHeader(w http.ResponseWriter, r *http.Request, uploadInfo *dto.RegistrationBoardDTO) bool {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Println(err.Error())
