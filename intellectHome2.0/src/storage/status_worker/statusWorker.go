@@ -11,41 +11,43 @@ import (
 )
 
 const (
-	StatusRegistred = "registred"
-	StatusActive    = "active"
-	StatusLost      = "lost"
-	StatusNotActive = "offline"
-	NamePublisher   = "status_worker"
+	StatusRegistred     = "registred"
+	StatusActive        = "active"
+	StatusLost          = "lost"
+	StatusNotActive     = "offline"
+	NameWorkerPublisher = "status_worker"
 )
 
 type StatusWorker struct {
-	db             *database.DataBase
-	intervalUpdate time.Duration
-	offlineTime    time.Duration
-	ctx            context.Context
-	cancel         context.CancelFunc
-	EventBus       *events.EventBus
-	errChan        chan error
+	db                    *database.DataBase
+	intervalUpdate        time.Duration
+	offlineTime           time.Duration
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	EventBus              *events.EventBus
+	subBoardInfoUpdate    *events.TopicSubscriberOut
+	subBoardStatusUpddate *events.TopicSubscriberOut
+	subErrorDB            *events.TopicSubscriberOut
 }
 
 func MakeStatusWorker(db *database.DataBase, intervalInSecond time.Duration, offlineTime time.Duration, EventBus *events.EventBus) *StatusWorker {
 	//сделать размер буфера настраивым
 	ctx, cancel := context.WithCancel(context.Background())
 	return &StatusWorker{
-		db:             db,
-		intervalUpdate: intervalInSecond,
-		offlineTime:    offlineTime,
-		ctx:            ctx,
-		cancel:         cancel,
-		EventBus:       EventBus,
-		errChan:        db.ErrChan(),
+		db:                    db,
+		intervalUpdate:        intervalInSecond,
+		offlineTime:           offlineTime,
+		ctx:                   ctx,
+		cancel:                cancel,
+		EventBus:              EventBus,
+		subBoardInfoUpdate:    EventBus.Subscribe(events.TopicBoardInfoUpdate, NameWorkerPublisher),
+		subBoardStatusUpddate: EventBus.Subscribe(events.TopicBoardsStatusUpdate, NameWorkerPublisher),
+		subErrorDB:            EventBus.Subscribe(events.TopicErrorsDB, NameWorkerPublisher),
 	}
 }
 
 func (sw *StatusWorker) Start() {
-	subBoardUploadInfo := sw.EventBus.Subscribe(events.TopicBoardUploadInfo, NamePublisher)
-	subBoardChangeStatus := sw.EventBus.Subscribe(events.TopicBoardsEventStatus, NamePublisher)
-	go sw.startMarkBoardStateBeforeUpdate(subBoardUploadInfo, subBoardChangeStatus)
+	go sw.startMarkBoardStateBeforeUpdate()
 	go func() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
@@ -61,17 +63,16 @@ func (sw *StatusWorker) Start() {
 	}()
 }
 
-func (sw *StatusWorker) startMarkBoardStateBeforeUpdate(subBoardUploadInfo *events.TopicSubscriberOut, subBoardChangeStatus *events.TopicSubscriberOut) {
+func (sw *StatusWorker) startMarkBoardStateBeforeUpdate() {
 	for {
 		select {
 		case <-sw.ctx.Done():
 			return
-		case sub := <-subBoardUploadInfo.Chan:
-			log.Printf("Sent event by: %s\n", sub.Publisher)
+		case info := <-sw.subBoardInfoUpdate.Chan:
 			if !sw.db.IsConnect() {
 				time.Sleep(sw.intervalUpdate * 2)
 				if !sw.db.IsConnect() {
-					log.Printf("Status worker: not update status board: %s, from publisher: %s. DB error\n", sub.BoardID, sub.Publisher)
+					log.Printf("Status worker: not update status board: %s, DB error\n", info.BoardID)
 					continue
 				}
 			}
@@ -82,28 +83,32 @@ func (sw *StatusWorker) startMarkBoardStateBeforeUpdate(subBoardUploadInfo *even
 		FROM boardInfo bi
 		WHERE b.board_id = $2
 		AND bi.updated_date IS NOT NULL;`,
-				StatusActive, sub.BoardID)
+				StatusActive, info.BoardID)
 			if err != nil {
 				log.Println(err.Error())
-				select {
-				case sw.errChan <- err:
-				default:
+				err = sw.EventBus.Publish(sw.subErrorDB.Topic, events.Event{
+					Type:       sw.subErrorDB.Topic,
+					BoardID:    info.BoardID,
+					Payload:    err,
+					Publisher:  NameWorkerPublisher,
+					DatePublic: time.Now(),
+				}, sw.subErrorDB.ID)
+				if err != nil {
+					log.Println(err)
 				}
 				continue
 			}
-			log.Printf("set active status in board_id: %s\n", sub.BoardID)
-			err = sw.EventBus.Publish(subBoardChangeStatus.Topic, events.Event{
-				Type:       subBoardChangeStatus.Topic,
-				BoardID:    sub.BoardID,
-				Payload:    fmt.Sprintf("change status to %s after upload", StatusActive),
-				Publisher:  NamePublisher,
+			err = sw.EventBus.Publish(sw.subBoardStatusUpddate.Topic, events.Event{
+				Type:       sw.subBoardStatusUpddate.Topic,
+				BoardID:    info.BoardID,
+				Payload:    "update status to active",
+				Publisher:  NameWorkerPublisher,
 				DatePublic: time.Now(),
-			}, subBoardChangeStatus.ID)
+			}, sw.subBoardStatusUpddate.ID)
 			if err != nil {
-				log.Printf("Erro in publish statusWorker: %s\n", err.Error())
-			} else {
-				log.Printf("publish event in topic: %s, publisher: %s\n", subBoardChangeStatus.Topic, NamePublisher)
+				log.Println(err)
 			}
+			log.Printf("set active status in board_id: %s\n", info.BoardID)
 		}
 	}
 }
@@ -123,67 +128,106 @@ func (sw *StatusWorker) proccesingStatusLost() {
 	intervalStr := fmt.Sprintf("%d seconds", int(sw.intervalUpdate.Seconds()))
 	offlineTime := fmt.Sprintf("%d seconds", int(sw.offlineTime.Seconds()))
 	//закинуть в отдельный метод в бд
-	res, err := sw.db.GetPointer().Exec(
+	rows, err := sw.db.GetPointer().Query(
 		`UPDATE boards b
 		SET board_state = $1, updated_date = NOW()
 		FROM boardInfo bi
 		WHERE b.board_id = bi.board_id
 		AND bi.updated_date <= NOW() - $2::interval
 		AND bi.updated_date >= NOW() - $3::interval
-		AND b.board_state != $4;`,
+		AND b.board_state != $4
+		RETURNING b.board_id;`,
 		StatusLost, intervalStr, offlineTime, StatusLost)
 	if err != nil {
-		select {
-		case sw.errChan <- err:
-		default:
-		}
-		return
-	}
-	aff, err := res.RowsAffected()
-	if err != nil {
 		log.Println(err.Error())
-		select {
-		case sw.errChan <- err:
-		default:
+		err := sw.EventBus.Publish(sw.subErrorDB.Topic, events.Event{
+			Type:       sw.subErrorDB.Topic,
+			Payload:    err,
+			Publisher:  NameWorkerPublisher,
+			DatePublic: time.Now(),
+		}, sw.subErrorDB.ID)
+		if err != nil {
+			log.Println(err)
 		}
 		return
 	}
-	if aff > 0 {
-		log.Printf("set lost status in %d row\n", aff)
+	var updatedBoardIDs []string
+	for rows.Next() {
+		var boardID string
+		if err := rows.Scan(&boardID); err != nil {
+			log.Printf("Error scanning board_id: %v", err)
+			continue
+		}
+		updatedBoardIDs = append(updatedBoardIDs, boardID)
+	}
+	if len(updatedBoardIDs) != 0 {
+		for _, boardID := range updatedBoardIDs {
+			err := sw.EventBus.Publish(sw.subBoardStatusUpddate.Topic, events.Event{
+				Type:       sw.subBoardStatusUpddate.Topic,
+				BoardID:    boardID,
+				Payload:    "updated status to lost",
+				DatePublic: time.Now(),
+				Publisher:  NameWorkerPublisher,
+			}, sw.subBoardStatusUpddate.ID)
+			if err != nil {
+				log.Println(err)
+			}
+		}
 	}
 }
 
 func (sw *StatusWorker) proccesingStatusOffline() {
 	offlineTime := fmt.Sprintf("%d seconds", int(sw.offlineTime.Seconds()))
 	//закинуть в отдельный метод в бд
-	res, err := sw.db.GetPointer().Exec(`
+	rows, err := sw.db.GetPointer().Query(`
 	UPDATE boards b
 		SET board_state = $1, updated_date = NOW()
 		FROM boardInfo bi
 		WHERE b.board_id = bi.board_id
 		AND bi.updated_date <= NOW() - $2::interval
 		AND b.board_state != $3
+		RETURNING b.board_id;
 `, StatusNotActive, offlineTime, StatusNotActive)
 
 	if err != nil {
-		select {
-		case sw.errChan <- err:
-		default:
+		log.Println(err.Error())
+		err := sw.EventBus.Publish(sw.subErrorDB.Topic, events.Event{
+			Type:       sw.subErrorDB.Topic,
+			Payload:    err,
+			Publisher:  NameWorkerPublisher,
+			DatePublic: time.Now(),
+		}, sw.subErrorDB.ID)
+		if err != nil {
+			log.Println(err)
 		}
 		return
 	}
 
-	aff, err := res.RowsAffected()
-	if err != nil {
-		select {
-		case sw.errChan <- err:
-		default:
+	var updatedBoardIDs []string
+	for rows.Next() {
+		var boardID string
+		if err := rows.Scan(&boardID); err != nil {
+			log.Printf("Error scanning board_id: %v", err)
+			continue
 		}
-		return
+		updatedBoardIDs = append(updatedBoardIDs, boardID)
 	}
-	if aff > 0 {
-		log.Printf("set offline status in %d row\n", aff)
+	if len(updatedBoardIDs) != 0 {
+		for _, boardID := range updatedBoardIDs {
+			err := sw.EventBus.Publish(sw.subBoardStatusUpddate.Topic, events.Event{
+				Type:       sw.subBoardStatusUpddate.Topic,
+				BoardID:    boardID,
+				Payload:    "updated status to offline",
+				DatePublic: time.Now(),
+				Publisher:  NameWorkerPublisher,
+			}, sw.subBoardStatusUpddate.ID)
+			if err != nil {
+				log.Println(err)
+			}
+		}
+		fmt.Println(updatedBoardIDs)
 	}
+
 }
 
 func (sw *StatusWorker) Cancel() {

@@ -6,22 +6,26 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	dto "github.com/Piccadilly98/goProjects/intellectHome2.0/src/DTO"
+	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/core/events"
 	database "github.com/Piccadilly98/goProjects/intellectHome2.0/src/storage/dataBase"
 	"github.com/go-chi/chi/v5"
 )
 
+const (
+	boardUpdateInfoName = "boardUpdateHandler"
+)
+
 type updateBoardInfoHandler struct {
-	db         *database.DataBase
-	chanUpdate chan string
+	db       *database.DataBase
+	sub      *events.TopicSubscriberOut
+	eventBus *events.EventBus
 }
 
-func MakeUpdateBoardInfoHandler(db *database.DataBase, chanUpdate chan string) *updateBoardInfoHandler {
-	if chanUpdate == nil {
-		return nil
-	}
-	return &updateBoardInfoHandler{db: db, chanUpdate: chanUpdate}
+func MakeUpdateBoardInfoHandler(db *database.DataBase, eventBus *events.EventBus) *updateBoardInfoHandler {
+	return &updateBoardInfoHandler{db: db, eventBus: eventBus, sub: eventBus.Subscribe(events.TopicBoardInfoUpdate, boardUpdateInfoName)}
 }
 
 func (ub *updateBoardInfoHandler) Handler(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +42,13 @@ func (ub *updateBoardInfoHandler) Handler(w http.ResponseWriter, r *http.Request
 		w.Write([]byte(strErr))
 		return
 	}
-	ub.chanUpdate <- param
+	ub.eventBus.Publish(events.TopicBoardInfoUpdate, events.Event{
+		Type:       events.TopicBoardInfoUpdate,
+		BoardID:    param,
+		Payload:    fmt.Sprintf("update info in board: %s", param),
+		Publisher:  boardUpdateInfoName,
+		DatePublic: time.Now(),
+	}, ub.sub.ID)
 	w.Write([]byte(`{"status":"ok"}`))
 }
 

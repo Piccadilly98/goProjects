@@ -57,7 +57,7 @@ func (eb *EventBus) Subscribe(topic, name string) *TopicSubscriberOut {
 
 	eb.subscribers[topic][ts.ID] = in
 
-	log.Printf("Зарегистрирован новый подписчик: %s\n", name)
+	// log.Printf("Зарегистрирован новый подписчик: %s в топике: %s\n", name, topic)
 	return ts
 }
 
@@ -75,7 +75,7 @@ func (eb *EventBus) Publish(topic string, event Event, id int) error {
 	if !ok {
 		return fmt.Errorf("invalid id, please subscribe")
 	}
-
+	// log.Printf("Получено новое сообщение в топике: %s, payload: %v, от %s\n", topic, event.Payload, event.Publisher)
 	go func() {
 		for idMap, sub := range subscribers {
 			if id == idMap {
@@ -101,9 +101,9 @@ func (eb *EventBus) UnSubscribe(sub *TopicSubscriberOut) {
 	defer func() {
 		eb.mu.Unlock()
 	}()
-	log.Printf("запрос на удаление: %d\n", sub.ID)
+	// log.Printf("запрос на удаление: %d\n", sub.ID)
 	eb.subscribers[sub.Topic][sub.ID].isClosed = true
 	eb.dq.DeleteFromQueue(sub.Topic, sub.ID)
-	log.Printf("удалили из очереди %d\n", sub.ID)
+	// log.Printf("удалили из очереди %d\n", sub.ID)
 	close(eb.subscribers[sub.Topic][sub.ID].ch)
 }

@@ -29,7 +29,7 @@ type TestCaseRegistrationBoard struct {
 }
 
 func TestRegistrationBoard(t *testing.T) {
-	serv, err := server.NewServer(true, 30, 120, false)
+	serv, err := server.NewServer(true, 30, 120, false, 0, 0)
 	if err != nil {
 		init_data_base.Cleanup(serv.Db)
 		t.Fatalf("error in create db: %s", err.Error())

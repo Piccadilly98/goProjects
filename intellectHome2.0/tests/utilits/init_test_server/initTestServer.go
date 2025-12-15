@@ -9,7 +9,7 @@ import (
 
 func InitTestServer(workers bool) (*server.Server, error) {
 
-	serv, err := server.NewServer(true, 30, 150, workers)
+	serv, err := server.NewServer(true, 30, 150, workers, 0, 0)
 	if err != nil {
 		log.Println(err)
 		return nil, err

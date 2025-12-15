@@ -16,12 +16,13 @@ import (
 )
 
 type Server struct {
-	Db           *database.DataBase
-	StatusWorker *status_worker.StatusWorker
-	ErrorWorker  *database.ErrorWorker
-	R            *chi.Mux
-	Wg           sync.WaitGroup
-	EventBus     *events.EventBus
+	Db              *database.DataBase
+	StatusWorker    *status_worker.StatusWorker
+	ErrorWorker     *database.ErrorWorker
+	R               *chi.Mux
+	Wg              sync.WaitGroup
+	ErrorServerChan chan error
+	EventBus        *events.EventBus
 }
 
 func NewServer(testing bool,
@@ -37,21 +38,21 @@ func NewServer(testing bool,
 		return nil, err
 	}
 	serv := &Server{}
+	serv.ErrorServerChan = make(chan error)
 	serv.R = chi.NewMux()
 	var db *database.DataBase
+	serv.EventBus = events.NewEventBus(bufferSize, intervalUpdateStatus)
+
 	if !testing {
-		db, err = database.MakeDataBase(os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_USERNAME"), os.Getenv("DB_NAME_DB"), os.Getenv("DB_PASSWORD"))
+		db, err = database.MakeDataBase(os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_USERNAME"), os.Getenv("DB_NAME_DB"), os.Getenv("DB_PASSWORD"), serv.EventBus)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		db, err = database.MakeDataBase(os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_USERNAME"), os.Getenv("DB_NAME_TEST"), os.Getenv("DB_PASSWORD"))
+		db, err = database.MakeDataBase(os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_USERNAME"), os.Getenv("DB_NAME_TEST"), os.Getenv("DB_PASSWORD"), serv.EventBus)
 		if err != nil {
 			return nil, err
 		}
-	}
-	if !testing {
-		serv.EventBus = events.NewEventBus(bufferSize, intervalUpdateStatus)
 	}
 
 	serv.Db = db
@@ -64,7 +65,7 @@ func NewServer(testing bool,
 	registration := handlers.MakeRegistrationHandler(db)
 	update := handlers.MakeBoardUpdateHandler(db)
 	get := handlers.MakeBoardIDGet(db)
-	updateInfo := handlers.MakeUpdateBoardInfoHandler(db, serv.UpdateChan)
+	updateInfo := handlers.MakeUpdateBoardInfoHandler(db, serv.EventBus)
 	getInfo := handlers.MakeBoardInfoGetHandler(db)
 	boardsGet := handlers.MakeBoardsGetHandler(db)
 	controllersGet := handlers.MakeBoardControllersHandler(db)

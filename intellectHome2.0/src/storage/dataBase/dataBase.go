@@ -15,6 +15,7 @@ import (
 	"time"
 
 	dto "github.com/Piccadilly98/goProjects/intellectHome2.0/src/DTO"
+	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/core/events"
 )
 
 const (
@@ -30,8 +31,10 @@ const (
 	ControllerColumnPinNumber    = "pin_number"
 	BinaryControllerColumnStatus = "status"
 
-	SensorControllerColumnUnit  = "unit"
-	SensorControllerColumnValue = "value"
+	SensorControllerColumnUnit    = "unit"
+	SensorControllerColumnValue   = "value"
+	TopicPublisherNameDb          = "dataBase.dataBase"
+	TopicPublisherNameErrorWorker = "dataBase.error_worker"
 )
 
 // сделать кэш в in memory мапе с board_id
@@ -42,12 +45,13 @@ type DataBase struct {
 	nameDb    string
 	password  string
 	db        *sql.DB
-	errChan   chan error
+	eventBus  *events.EventBus
+	subError  *events.TopicSubscriberOut
 	mtx       sync.Mutex
 	isConnect atomic.Bool
 }
 
-func MakeDataBase(host string, port string, username string, nameDb string, password string) (*DataBase, error) {
+func MakeDataBase(host string, port string, username string, nameDb string, password string, eventBus *events.EventBus) (*DataBase, error) {
 	db, err := initDataBase(host, port, username, nameDb, password)
 	if db == nil {
 		return nil, err
@@ -59,7 +63,8 @@ func MakeDataBase(host string, port string, username string, nameDb string, pass
 		nameDb:   nameDb,
 		password: password,
 		db:       db,
-		errChan:  make(chan error),
+		eventBus: eventBus,
+		subError: eventBus.Subscribe(events.TopicErrorsDB, TopicPublisherNameDb),
 	}
 	res.isConnect.Store(true)
 	return res, nil
@@ -80,17 +85,29 @@ func (db *DataBase) processingError(err error) (int, error) {
 	}
 	if strings.Contains(err.Error(), "connection refused") || strings.Contains(err.Error(), "many clients") ||
 		strings.Contains(err.Error(), "bad connection") {
-		select {
-		case db.errChan <- err:
-		default:
+		err := db.eventBus.Publish(db.subError.Topic, events.Event{
+			Type:       db.subError.Topic,
+			Payload:    err,
+			DatePublic: time.Now(),
+			Publisher:  TopicPublisherNameDb,
+		}, db.subError.ID)
+		if err != nil {
+			log.Println(err)
 		}
+		fmt.Println("тут1")
 		return http.StatusServiceUnavailable, fmt.Errorf("fail connection db")
 	}
 	if errors.Is(err, sql.ErrConnDone) {
-		select {
-		case db.errChan <- err:
-		default:
+		err := db.eventBus.Publish(db.subError.Topic, events.Event{
+			Type:       db.subError.Topic,
+			Payload:    err,
+			DatePublic: time.Now(),
+			Publisher:  TopicPublisherNameDb,
+		}, db.subError.ID)
+		if err != nil {
+			log.Println(err)
 		}
+		fmt.Println("тут2")
 		return http.StatusServiceUnavailable, fmt.Errorf("fail connection db")
 	}
 	return http.StatusInternalServerError, err
@@ -606,10 +623,6 @@ func (db *DataBase) GetPointer() *sql.DB {
 	db.mtx.Lock()
 	defer db.mtx.Unlock()
 	return db.db
-}
-
-func (db *DataBase) ErrChan() chan error {
-	return db.errChan
 }
 
 func (db *DataBase) IsConnect() bool {
