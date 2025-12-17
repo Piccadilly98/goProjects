@@ -1,4 +1,4 @@
-package data_base_methods
+package database_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	dto "github.com/Piccadilly98/goProjects/intellectHome2.0/src/DTO"
 	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/server"
 	"github.com/Piccadilly98/goProjects/intellectHome2.0/tests"
+	data_base_methods "github.com/Piccadilly98/goProjects/intellectHome2.0/tests/unit/databaseMethods"
 	"github.com/Piccadilly98/goProjects/intellectHome2.0/tests/utilits/init_data_base"
 )
 
@@ -677,7 +678,7 @@ func TestRegistrationBoard(t *testing.T) {
 				}
 			}
 			if tc.ExpectedExistBoardInfo {
-				exist, err := CheckExistBoardInfo(serv.Db, *tc.BoardID)
+				exist, err := data_base_methods.CheckExistBoardInfo(serv.Db, *tc.BoardID)
 				if err != nil {
 					t.Errorf("ERROR: %v\n", err.Error())
 				}

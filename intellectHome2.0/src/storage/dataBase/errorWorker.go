@@ -1,5 +1,6 @@
 package database
 
+//переписать  main что бы слушал статус
 import (
 	"fmt"
 	"log"
@@ -10,7 +11,7 @@ import (
 
 type ErrorWorker struct {
 	db             *DataBase
-	subErrrorDb    *events.TopicSubscriberOut
+	subErrorDb     *events.TopicSubscriberOut
 	dataBaseStatus *events.TopicSubscriberOut
 }
 
@@ -19,14 +20,14 @@ type ErrorWorker struct {
 func MakeErrorWorker(db *DataBase) *ErrorWorker {
 	return &ErrorWorker{
 		db:             db,
-		subErrrorDb:    db.eventBus.Subscribe(events.TopicErrorsDB, TopicPublisherNameErrorWorker),
+		subErrorDb:     db.eventBus.Subscribe(events.TopicErrorsDB, TopicPublisherNameErrorWorker),
 		dataBaseStatus: db.eventBus.Subscribe(events.TopicDataBaseStatus, TopicPublisherNameErrorWorker),
 	}
 }
 
 func (ew *ErrorWorker) Start() {
 	go func() {
-		for event := range ew.subErrrorDb.Chan {
+		for event := range ew.subErrorDb.Chan {
 			log.Printf("DB error detected: %v by: %s → starting recovery", event.Payload, event.Publisher)
 			err := ew.db.eventBus.Publish(ew.dataBaseStatus.Topic, events.Event{
 				Type:       ew.dataBaseStatus.Topic,
@@ -41,7 +42,7 @@ func (ew *ErrorWorker) Start() {
 				log.Fatalf("FATAL: cannot recover database: %v", event.Payload)
 				err := ew.db.eventBus.Publish(ew.dataBaseStatus.Topic, events.Event{
 					Type:       ew.dataBaseStatus.Topic,
-					Payload:    "Data base not recover, server off\n",
+					Payload:    "DataBase not recover, server off\n",
 					Publisher:  TopicPublisherNameErrorWorker,
 					DatePublic: time.Now(),
 				}, ew.dataBaseStatus.ID)
@@ -52,7 +53,7 @@ func (ew *ErrorWorker) Start() {
 				log.Println("DB recovered successfully")
 				err := ew.db.eventBus.Publish(ew.dataBaseStatus.Topic, events.Event{
 					Type:       ew.dataBaseStatus.Topic,
-					Payload:    "Data base recovered successfully\n",
+					Payload:    "DataBase recovered successfully\n",
 					Publisher:  TopicPublisherNameErrorWorker,
 					DatePublic: time.Now(),
 				}, ew.dataBaseStatus.ID)

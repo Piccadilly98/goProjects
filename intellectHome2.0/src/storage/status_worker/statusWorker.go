@@ -225,7 +225,6 @@ func (sw *StatusWorker) proccesingStatusOffline() {
 				log.Println(err)
 			}
 		}
-		fmt.Println(updatedBoardIDs)
 	}
 
 }

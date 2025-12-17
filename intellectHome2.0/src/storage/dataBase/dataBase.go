@@ -2,6 +2,8 @@ package database
 
 // сделать в бд чек статусов: registred or active or offline
 // сделать выдачу id, что бы это не было кастомным полем
+// добавить чекер пинга
+//
 import (
 	"context"
 	"database/sql"
@@ -74,7 +76,8 @@ func MakeDataBase(host string, port string, username string, nameDb string, pass
 // по возможности убрать что бы бд возвращал код, нужно возвращать ошибку и какую нибудь false/true
 // cancel context
 // решить проблему с ошибками: неверный запрос даёт нам всегда 500, это не правильно
-
+// убрать хардкод ошибок и закинуть их в конфиг
+// сделать ещё один топик со всеми ошибками
 func (db *DataBase) processingError(err error) (int, error) {
 	if strings.Contains(err.Error(), "canceling statement due to user request") ||
 		strings.Contains(err.Error(), "context deadline exceeded") || errors.Is(err, context.Canceled) {
@@ -84,7 +87,7 @@ func (db *DataBase) processingError(err error) (int, error) {
 		return http.StatusBadRequest, err
 	}
 	if strings.Contains(err.Error(), "connection refused") || strings.Contains(err.Error(), "many clients") ||
-		strings.Contains(err.Error(), "bad connection") {
+		strings.Contains(err.Error(), "bad connection") || strings.Contains(err.Error(), "failed to connect") || errors.Is(err, sql.ErrConnDone) {
 		err := db.eventBus.Publish(db.subError.Topic, events.Event{
 			Type:       db.subError.Topic,
 			Payload:    err,
@@ -94,20 +97,6 @@ func (db *DataBase) processingError(err error) (int, error) {
 		if err != nil {
 			log.Println(err)
 		}
-		fmt.Println("тут1")
-		return http.StatusServiceUnavailable, fmt.Errorf("fail connection db")
-	}
-	if errors.Is(err, sql.ErrConnDone) {
-		err := db.eventBus.Publish(db.subError.Topic, events.Event{
-			Type:       db.subError.Topic,
-			Payload:    err,
-			DatePublic: time.Now(),
-			Publisher:  TopicPublisherNameDb,
-		}, db.subError.ID)
-		if err != nil {
-			log.Println(err)
-		}
-		fmt.Println("тут2")
 		return http.StatusServiceUnavailable, fmt.Errorf("fail connection db")
 	}
 	return http.StatusInternalServerError, err

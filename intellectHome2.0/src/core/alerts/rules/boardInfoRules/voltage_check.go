@@ -10,16 +10,16 @@ type VoltageChecker struct {
 }
 
 func NewVoltageChecker(warningHigh, criticalHigh, warningLow, criticalLow float64) *VoltageChecker {
-	if warningHigh == 0 {
+	if warningHigh <= 0 {
 		warningHigh = DefaultWarningHighVoltage
 	}
-	if criticalHigh == 0 {
+	if criticalHigh <= 0 {
 		criticalHigh = DefaultCriticalHighVoltage
 	}
-	if warningLow == 0 {
+	if warningLow <= 0 {
 		warningLow = DefaultWarningLowVoltage
 	}
-	if criticalLow == 0 {
+	if criticalLow <= 0 {
 		criticalLow = DefaultCriticalLowVoltage
 	}
 
@@ -38,7 +38,7 @@ func (v *VoltageChecker) Check(voltage float64) (string, string) {
 		status = rules.TypeAlertWarning
 		text = "warning low voltage"
 	}
-	if voltage < v.CriticalLow {
+	if voltage <= v.CriticalLow {
 		status = rules.TypeAlertCritical
 		text = "critical low voltage"
 	}

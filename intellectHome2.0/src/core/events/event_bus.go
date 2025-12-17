@@ -57,7 +57,7 @@ func (eb *EventBus) Subscribe(topic, name string) *TopicSubscriberOut {
 
 	eb.subscribers[topic][ts.ID] = in
 
-	// log.Printf("Зарегистрирован новый подписчик: %s в топике: %s\n", name, topic)
+	log.Printf("Зарегистрирован новый подписчик: %s в топике: %s\n", name, topic)
 	return ts
 }
 

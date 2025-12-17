@@ -1,4 +1,4 @@
-package data_base_methods
+package database_test
 
 import (
 	"context"

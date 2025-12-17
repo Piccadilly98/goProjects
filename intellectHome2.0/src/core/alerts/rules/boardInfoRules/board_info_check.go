@@ -15,6 +15,9 @@ type BoardInfoChecker struct {
 }
 
 func NewBoardInfoChecker(rssiChecker *RssiChecker, tempChecker *TemperatureCpuCheck, voltageChecker *VoltageChecker) *BoardInfoChecker {
+	// if rssiChecker == nil && tempChecker == nil && voltageChecker == nil {
+	// 	return nil
+	// }
 	return &BoardInfoChecker{
 		rssiChecker:    rssiChecker,
 		tempChecker:    tempChecker,
@@ -33,27 +36,48 @@ func (b *BoardInfoChecker) Check(event events.Event) (*rules.Alert, error) {
 	}
 	res := ""
 	if b.rssiChecker != nil {
+		if dto.RssiWifi == nil {
+			return nil, fmt.Errorf("invalid dto")
+		}
 		status, text := b.rssiChecker.Check(*dto.RssiWifi)
 		if status != rules.TypeAlertNormal {
-			res += fmt.Sprintf("\n%s", text)
+			if len(res) != 0 {
+				res += fmt.Sprintf("\n%s", text)
+			} else {
+				res += text
+			}
 			if alert.Type != rules.TypeAlertCritical {
 				alert.Type = status
 			}
 		}
 	}
 	if b.tempChecker != nil {
+		if dto.CpuTemp == nil {
+			return nil, fmt.Errorf("invalid dto")
+		}
 		status, text := b.tempChecker.Check(*dto.CpuTemp)
 		if status != rules.TypeAlertNormal {
-			res += fmt.Sprintf("\n%s", text)
+			if len(res) != 0 {
+				res += fmt.Sprintf("\n%s", text)
+			} else {
+				res += text
+			}
 			if alert.Type != rules.TypeAlertCritical {
 				alert.Type = status
 			}
 		}
 	}
 	if b.voltageChecker != nil {
+		if dto.Voltage == nil {
+			return nil, fmt.Errorf("invalid dto")
+		}
 		status, text := b.voltageChecker.Check(*dto.Voltage)
 		if status != rules.TypeAlertNormal {
-			res += fmt.Sprintf("\n%s", text)
+			if len(res) != 0 {
+				res += fmt.Sprintf("\n%s", text)
+			} else {
+				res += text
+			}
 			if alert.Type != rules.TypeAlertCritical {
 				alert.Type = status
 			}

@@ -10,11 +10,11 @@ type RssiChecker struct {
 }
 
 func NewRSsiChecker(warning, critical int) *RssiChecker {
-	if warning >= 0 {
+	if warning >= 0 || warning < -100 {
 		warning = DefaultWarningRSSI
 		// log.Printf("Rssi checker: set warning default: %f\n", DefaultWarningRSSI)
 	}
-	if critical >= 0 {
+	if critical >= 0 || critical < -100 {
 		critical = DefaultCriticalRSSI
 		// log.Printf("Rssi checker: set critical default: %f\n", DefaultCriticalRSSI)
 	}
