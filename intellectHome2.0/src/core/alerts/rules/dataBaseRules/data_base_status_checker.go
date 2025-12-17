@@ -26,12 +26,12 @@ func NewDataBaseStatusChecker(StatusStartRecovery, StatusNotRecovered, StatusFin
 	}, nil
 }
 
-func (d *DataBaseStatusChecker) Check(payload any) (string, string, error) {
+func (d *DataBaseStatusChecker) Check(payload any) (string, string) {
 	res := ""
-	status := rules.TypeAlertNormal
+	status := ""
 	str, ok := payload.(string)
 	if !ok {
-		return "", "", fmt.Errorf("invalid type in payload")
+		return "", ""
 	}
 
 	if d.StatusStartRecovery && strings.Contains(str, DataBaseFail) {
@@ -44,9 +44,11 @@ func (d *DataBaseStatusChecker) Check(payload any) (string, string, error) {
 	}
 	if d.StatusFinishRecover && strings.Contains(str, DataBaseFinishRecover) {
 		res = str
+		status = rules.TypeAlertNormal
 	}
 	if d.StatusOK && strings.Contains(str, DataBaseStatusOK) {
 		res = str
+		status = rules.TypeAlertNormal
 	}
-	return res, status, nil
+	return res, status
 }

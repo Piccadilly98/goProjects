@@ -69,9 +69,9 @@ type TestCaseDataBaseStatusChecker struct {
 	ExpectedData        bool
 	ExpectData          string
 	ExpectStatus        string
-	ExpectedErrorCheck  error
 }
 
+// переписать что бы проверялось тело на "", ""
 func TestDataBaseStatusChecker(t *testing.T) {
 	testCases := []TestCaseDataBaseStatusChecker{
 		{
@@ -126,7 +126,6 @@ func TestDataBaseStatusChecker(t *testing.T) {
 			StatusOK:            true,
 			InputData:           fmt.Sprintf("message received by: %s, message: %v,  DataBase fail, start Recover\n", "sd", "v"),
 			ExpectedData:        false,
-			ExpectStatus:        rules.TypeAlertNormal,
 		},
 		{
 			Name:                "normal_no_start_input_not_recovered",
@@ -377,7 +376,6 @@ func TestDataBaseStatusChecker(t *testing.T) {
 			StatusOK:            false,
 			InputData:           []string{"DataBase ping status: ok"},
 			ExpectedData:        false,
-			ExpectedErrorCheck:  fmt.Errorf("invalid type in payload"),
 		},
 		{
 			Name:                "invalid_type_payload_2",
@@ -387,7 +385,6 @@ func TestDataBaseStatusChecker(t *testing.T) {
 			StatusOK:            false,
 			InputData:           struct{ status string }{status: "DataBase ping status: ok"},
 			ExpectedData:        false,
-			ExpectedErrorCheck:  fmt.Errorf("invalid type in payload"),
 		},
 		{
 			Name:                "invalid_type_payload_3",
@@ -397,7 +394,6 @@ func TestDataBaseStatusChecker(t *testing.T) {
 			StatusOK:            false,
 			InputData:           map[string]string{"status": "DataBase ping status: ok"},
 			ExpectedData:        false,
-			ExpectedErrorCheck:  fmt.Errorf("invalid type in payload"),
 		},
 		{
 			Name:                "no_rules",
@@ -422,17 +418,8 @@ func TestDataBaseStatusChecker(t *testing.T) {
 				}
 				return
 			}
-			str, status, err := check.Check(tc.InputData)
-			if err != nil {
-				if tc.ExpectedErrorCheck != nil {
-					if tc.ExpectedErrorCheck.Error() != err.Error() {
-						t.Errorf("ERROR: got: %s, expect; %s\n", tc.ExpectedErrorCheck.Error(), err.Error())
-					}
-				} else {
-					t.Errorf("unexpected error after check: %s\n", err.Error())
-				}
-				return
-			}
+			str, status := check.Check(tc.InputData)
+
 			if tc.ExpectedData {
 				if str != tc.ExpectData {
 					t.Errorf("DATA: got: %s, expect: %s\n", str, tc.ExpectData)
@@ -444,7 +431,7 @@ func TestDataBaseStatusChecker(t *testing.T) {
 				if str != "" {
 					t.Errorf("unexpected str: %s\n", str)
 				}
-				if status != rules.TypeAlertNormal {
+				if status != "" {
 					t.Errorf("unexpected status: %s\n", status)
 				}
 			}
