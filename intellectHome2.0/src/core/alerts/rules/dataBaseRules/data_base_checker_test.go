@@ -1,5 +1,10 @@
 package database_rules_test
 
+import (
+	database_rules "github.com/Piccadilly98/goProjects/intellectHome2.0/src/core/alerts/rules/dataBaseRules"
+	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/core/events"
+)
+
 // import (
 // 	"fmt"
 // 	"testing"
@@ -59,16 +64,16 @@ package database_rules_test
 // 	}
 // }
 
-// type TestCaseDataBaseCheckerCheck struct {
-// 	Name          string
-// 	ErrorCheck    bool
-// 	StatusChecker *database_rules.DataBaseStatusChecker
-// 	Body          *events.Event
-// 	ExpectedAl    bool
-// 	ExpectData    string
-// 	ExpectStatus  string
-// 	ExpectedError error
-// }
+type TestCaseDataBaseCheckerCheck struct {
+	Name          string
+	ErrorCheck    *database_rules.ErrorDBChecker
+	StatusChecker *database_rules.DataBaseStatusChecker
+	Body          *events.Event
+	ExpectedAl    bool
+	ExpectData    string
+	ExpectStatus  string
+	ExpectedError error
+}
 
 // func TestDataBaseCheckerCheck(t *testing.T) {
 // 	testCases := []TestCaseDataBaseCheckerCheck{

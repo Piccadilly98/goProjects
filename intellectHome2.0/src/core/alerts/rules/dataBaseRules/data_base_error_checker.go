@@ -2,26 +2,97 @@ package database_rules
 
 import (
 	"fmt"
+	"strings"
+	"sync"
 
 	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/core/alerts/rules"
 )
 
 var DefaultWarnings = []string{
-	"slow_query_detected",
-	"low_disk_space",
-	"high_cpu_usage",
-	"high_connection_count",
-	"long_running_transaction",
-	"autovacuum_lag",
-	"replication_lag",
-	"low_cache_hit_ratio",
-	"high_fragmentation",
-	"non_optimal_config",
-	"stale_statistics",
-	"deadlock_detected",
-	"no_recent_backup",
-	"non_critical_log_errors",
-	"high_memory_usage",
+	"duplicate key",
+	"violates unique constraint",
+	"violates foreign key",
+	"violates not-null",
+	"violates check constraint",
+	"invalid input syntax",
+	"invalid byte sequence",
+	"malformed array",
+	"cannot cast",
+	"numeric value out of range",
+	"permission denied",
+	"must be owner",
+	"does not exist",
+	"already exists",
+	"transaction is aborted",
+	"in failed sql transaction",
+	"syntax error",
+	"ambiguous",
+	"operator does not exist",
+	"function does not exist",
+	"wrong number of parameters",
+	"parameter",
+	"division by zero",
+	"array subscript out of range",
+	"string data right truncation",
+	"datetime field overflow",
+	"cannot be changed",
+	"unrecognized configuration",
+	"failing row",
+	"key (",
+}
+
+var DefaultCritial = []string{
+	// === ОШИБКИ СОЕДИНЕНИЯ ===
+	"connection", "connect", "conn",
+	"reset", "refused", "broken", "closed",
+	"EOF", "network", "socket", "host", "port",
+	"dial", "timeout", "i/o timeout",
+
+	// === СЕТЕВЫЕ ОШИБКИ ===
+	"no route to host",
+	"network is unreachable",
+	"connection refused",
+	"connection timed out",
+
+	// === ОШИБКИ СЕРВЕРА ===
+	"server closed",
+	"server terminated",
+	"database system",
+	"shutting down",
+	"starting up",
+	"recovery",
+	"crash",
+
+	// === АВТОРИЗАЦИЯ ===
+	"password authentication failed",
+	"pg_hba.conf",
+	"authentication failed",
+	"login failed",
+
+	// === РЕСУРСЫ И ЛИМИТЫ ===
+	"too many connections",
+	"too many clients",
+	"out of memory",
+	"disk full",
+	"cannot allocate",
+
+	// === ФАТАЛЬНЫЕ ОШИБКИ ===
+	"fatal",
+	"panic",
+	"terminating connection",
+	"canceling statement",
+
+	// === ОШИБКИ ПРОТОКОЛА ===
+	"protocol violation",
+	"unexpected message",
+	"invalid message",
+
+	// === ОШИБКИ ДОСТУПА К ДАННЫМ ===
+	"could not open file",
+	"could not read file",
+	"could not write",
+	"read-only",
+	"read only transaction",
 }
 
 type ErrorDBChecker struct {
@@ -31,6 +102,7 @@ type ErrorDBChecker struct {
 	otherErrorsStatus string
 	CriticalErrCfg    []string
 	WarningErrCfg     []string
+	mu                sync.RWMutex
 }
 
 // default value otherErrorrsStatus - "WARNING"
@@ -41,7 +113,7 @@ func NewErrorDBChecker(criticalErr, warningErr, otherErrors bool, criticalErrCfg
 		return nil, fmt.Errorf("no rules, ErrorDBChecker no point")
 	}
 	if criticalErr && len(criticalErrCfg) == 0 {
-		return nil, fmt.Errorf("no critical config")
+		criticalErrCfg = DefaultCritial
 	}
 	if warningErr && len(warningErrCfg) == 0 {
 		warningErrCfg = DefaultWarnings
@@ -64,12 +136,49 @@ func NewErrorDBChecker(criticalErr, warningErr, otherErrors bool, criticalErrCfg
 	}, nil
 }
 
-// func (e *ErrorDBChecker) Check(payload any) (string, string) {
-// 	status := ""
-// 	data := ""
+func (e *ErrorDBChecker) OtherErrorrsStatus() string {
+	return e.otherErrorsStatus
+}
 
-// 	if err, ok := payload.(error); ok {
+func (e *ErrorDBChecker) Check(payload any) (string, string) {
 
-// 	}
-// 	return status, data
-// }
+	err, ok := payload.(error)
+	if !ok || err == nil {
+		return "", ""
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.criticalErr {
+		if e.checkCriticalErr(err) {
+			return rules.TypeAlertCritical, err.Error()
+		}
+	}
+	if e.warningErr {
+		if e.checkWarningErr(err) {
+			return rules.TypeAlertWarning, err.Error()
+		}
+	}
+	if e.otherErrors && e.otherErrorsStatus != rules.TypeAlertNormal {
+		return e.otherErrorsStatus, err.Error()
+	}
+
+	return "", ""
+}
+
+func (e *ErrorDBChecker) checkCriticalErr(err error) bool {
+	for _, val := range e.CriticalErrCfg {
+		if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(val)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *ErrorDBChecker) checkWarningErr(err error) bool {
+	for _, val := range e.WarningErrCfg {
+		if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(val)) {
+			return true
+		}
+	}
+	return false
+}

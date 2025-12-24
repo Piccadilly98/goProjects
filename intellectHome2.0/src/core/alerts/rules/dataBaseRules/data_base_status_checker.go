@@ -50,5 +50,5 @@ func (d *DataBaseStatusChecker) Check(payload any) (string, string) {
 		res = str
 		status = rules.TypeAlertNormal
 	}
-	return res, status
+	return status, res
 }

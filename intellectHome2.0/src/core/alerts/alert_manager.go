@@ -14,56 +14,83 @@ import (
 	"github.com/Piccadilly98/goProjects/intellectHome2.0/src/core/events"
 )
 
+const (
+	defaultMaxNumMessageParallel = 10
+	defaultBufferMessage         = 50
+)
+
 type AlertsManager struct {
-	recipients []notifiers.Notifier
-	mu         sync.RWMutex
-	eventBus   *events.EventBus
-	rules      []rules.Rule
-	ch         chan string
+	recipients  []notifiers.Notifier
+	mu          sync.RWMutex
+	eventBus    *events.EventBus
+	rules       []rules.Rule
+	ch          chan string
+	chanWorkers chan struct{}
 }
 
-func NewAlertsManager(eventBus *events.EventBus, ruls []rules.Rule, bufferMessage int, recipients ...notifiers.Notifier) (*AlertsManager, error) {
+func NewAlertsManager(eventBus *events.EventBus, ruls []rules.Rule, bufferMessage int, maxMessageParallel int, recipients ...notifiers.Notifier) (*AlertsManager, error) {
+	if maxMessageParallel <= 0 {
+		maxMessageParallel = defaultMaxNumMessageParallel
+	}
+	if bufferMessage <= 0 {
+		bufferMessage = defaultBufferMessage
+	}
 	if ruls == nil {
 		return nil, fmt.Errorf("no rules, alertsManager no point")
 	}
 	if slices.Contains(ruls, nil) {
 		return nil, fmt.Errorf("invalid values in rules")
 	}
+	if slices.Contains(recipients, nil) {
+		return nil, fmt.Errorf("invalid values in recipients")
+	}
+	if eventBus == nil {
+		return nil, fmt.Errorf("eventBus not may be nil")
+	}
 	am := &AlertsManager{
 		recipients: recipients,
 		eventBus:   eventBus,
 		rules:      ruls,
-		ch:         make(chan string),
+		// добавить буффер канала
+		ch:          make(chan string, bufferMessage),
+		chanWorkers: make(chan struct{}, maxMessageParallel),
 	}
 	return am, nil
 }
 
 func (am *AlertsManager) Start() {
-	go am.StartSentMessage()
-	for _, rule := range am.rules {
-		if b, ok := rule.(*board_info_rules.BoardInfoChecker); ok {
-			go am.processingBoardInfoChan(am.eventBus.Subscribe(TopicforBoardInfoChecker, NameForBoardInfoChecker), b)
-		}
-		if s, ok := rule.(*board_status_rules.BoardStatusChecker); ok {
-			go am.processingBoardStatusChan(am.eventBus.Subscribe(TopicForBoardStatusChecker, NameForBoardStatusChecker), s)
-		}
-		if d, ok := rule.(*database_rules.DataBaseChecker); ok {
-			go am.processingDataBase(d)
+	go am.startSendMessage()
+	for i, rule := range am.rules {
+		switch v := rule.(type) {
+		case *board_info_rules.BoardInfoChecker:
+			go am.processingBoardInfoChan(am.eventBus.Subscribe(TopicforBoardInfoChecker, NameForBoardInfoChecker), v)
+		case *board_status_rules.BoardStatusChecker:
+			go am.processingBoardStatusChan(am.eventBus.Subscribe(TopicForBoardStatusChecker, NameForBoardStatusChecker), v)
+		case *database_rules.DataBaseChecker:
+			am.processingDataBase(v)
+		default:
+			log.Printf("unexpected type in rules index: %d\n", i)
 		}
 	}
 }
 
-func (am *AlertsManager) StartSentMessage() {
+func (am *AlertsManager) startSendMessage() {
 	for alert := range am.ch {
-		am.mu.RLock()
-		for _, notifier := range am.recipients {
-			err := notifier.SentMessage(alert)
-			if err != nil {
-				log.Printf("Sent message: %s\nnot complete, %s\n", alert, err.Error())
-				continue
+		am.chanWorkers <- struct{}{}
+		go func(al string) {
+			am.mu.RLock()
+			notif := make([]notifiers.Notifier, len(am.recipients))
+			copy(notif, am.recipients)
+			am.mu.RUnlock()
+			for _, notifier := range notif {
+				err := notifier.SentMessage(al)
+				if err != nil {
+					log.Printf("Sent message: %s\nnot complete, %s\n", al, err.Error())
+					continue
+				}
 			}
-		}
-		am.mu.RUnlock()
+			<-am.chanWorkers
+		}(alert)
 	}
 }
 
@@ -79,7 +106,7 @@ func (am *AlertsManager) processingBoardInfoChan(sub *events.TopicSubscriberOut,
 			select {
 			case am.ch <- st:
 			default:
-				log.Printf("message: %s\nmessage recipient not ready, deleted\n", st)
+				log.Printf("message: %s\nrecipient not ready, deleted\n", st)
 			}
 		}
 	}
@@ -97,19 +124,15 @@ func (am *AlertsManager) processingBoardStatusChan(sub *events.TopicSubscriberOu
 			select {
 			case am.ch <- st:
 			default:
-				log.Printf("message: %s\nmessage recipient not ready, deleted\n", st)
+				log.Printf("message: %s\nrecipient not ready, deleted\n", st)
 			}
 		}
 	}
 }
 
 func (am *AlertsManager) processingDataBase(d *database_rules.DataBaseChecker) {
-	if d.ErrorCheck() {
-		go am.processingDataBaseError(d, am.eventBus.Subscribe(events.TopicErrorsDB, "data_base_error_checker"))
-	}
-	if d.StatusCheck() {
-		go am.processingDataBaseStatus(d, am.eventBus.Subscribe(events.TopicDataBaseStatus, "data_base_status_checker"))
-	}
+	go am.processingDataBaseError(d, am.eventBus.Subscribe(events.TopicErrorsDB, "alert_manager"))
+	go am.processingDataBaseStatus(d, am.eventBus.Subscribe(events.TopicDataBaseStatus, "alert_manager"))
 }
 
 func (am *AlertsManager) processingDataBaseStatus(d *database_rules.DataBaseChecker, sub *events.TopicSubscriberOut) {
@@ -124,7 +147,7 @@ func (am *AlertsManager) processingDataBaseStatus(d *database_rules.DataBaseChec
 			select {
 			case am.ch <- str:
 			default:
-				log.Printf("message: %s\nmessage recipient not ready, deleted\n", str)
+				log.Printf("message: %s\nrecipient not ready, deleted\n", str)
 			}
 		}
 	}
@@ -138,10 +161,11 @@ func (am *AlertsManager) processingDataBaseError(d *database_rules.DataBaseCheck
 			continue
 		}
 		if al != nil {
+			str := fmt.Sprintf("%s\n%s\n", al.Type, al.Data)
 			select {
-			case am.ch <- al.Data:
+			case am.ch <- str:
 			default:
-				log.Printf("message: %s\nmessage recipient not ready, deleted\n", al.Data)
+				log.Printf("message: %s\nrecipient not ready, deleted\n", str)
 			}
 		}
 	}

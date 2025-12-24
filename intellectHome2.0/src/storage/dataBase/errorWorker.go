@@ -16,7 +16,6 @@ type ErrorWorker struct {
 }
 
 // всю логику сюда
-
 func MakeErrorWorker(db *DataBase) *ErrorWorker {
 	return &ErrorWorker{
 		db:             db,

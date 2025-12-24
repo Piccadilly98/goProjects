@@ -418,7 +418,7 @@ func TestDataBaseStatusChecker(t *testing.T) {
 				}
 				return
 			}
-			str, status := check.Check(tc.InputData)
+			status, str := check.Check(tc.InputData)
 
 			if tc.ExpectedData {
 				if str != tc.ExpectData {

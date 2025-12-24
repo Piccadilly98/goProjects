@@ -2,7 +2,6 @@ package events
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,7 +24,7 @@ type EventBus struct {
 func NewEventBus(bufferSize int, intervarCheckQueue time.Duration) *EventBus {
 	if bufferSize <= 0 {
 		bufferSize = DefaultBufferSize
-		log.Printf("Invalid buffer size in NewEventBus, set default buffer size: %d\n", DefaultBufferSize)
+		// log.Printf("Invalid buffer size in NewEventBus, set default buffer size: %d\n", DefaultBufferSize)
 	}
 	eb := &EventBus{
 		subscribers: make(map[string]map[int]*topicSubscriberIn),
@@ -57,7 +56,7 @@ func (eb *EventBus) Subscribe(topic, name string) *TopicSubscriberOut {
 
 	eb.subscribers[topic][ts.ID] = in
 
-	log.Printf("Зарегистрирован новый подписчик: %s в топике: %s\n", name, topic)
+	// log.Printf("Зарегистрирован новый подписчик: %s в топике: %s с id: %d\n", name, topic, eb.subscribersID)
 	return ts
 }
 
@@ -84,7 +83,7 @@ func (eb *EventBus) Publish(topic string, event Event, id int) error {
 			select {
 			case sub.ch <- event:
 			default:
-				log.Printf("event in topic '%s', for id: %d not sent, dropped in queue\n", topic, id)
+				// log.Printf("event in topic '%s', for id: %d not sent, dropped in queue\n", topic, id)
 				eb.dq.AddToQueue(topic, event, sub, id)
 			}
 		}
